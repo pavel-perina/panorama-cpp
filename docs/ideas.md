@@ -40,6 +40,62 @@ summit-annotation-notes.md): current DB only has prom ≥ 100 m CZ hills, so
 foreground silhouette bumps are unlabeled; with own prominence we can set
 per-distance thresholds (near: prom ≥ 30 m, far: prom ≥ 300 m).
 
+## Peak rating + label selection (practical filter before true prominence)
+
+Problem observed in the web app: horizon hills are unlabeled (curated list
+only has prom ≥ 100 m), but labeling all OSM peaks would flood the image
+(~2 600 named+ele peaks in just 3 CZ cells). Key design decision: **no
+global threshold can fix both** — the right label density is
+view-dependent. Two stages:
+
+### Stage 1 — offline rating (scripts/build_peaks_db.py, run-once)
+
+For each 1×1° cell of `data/osm-peaks/` (loading the 8 neighbor cells too,
+so border peaks get full context; missing neighbors = ocean/edge):
+
+1. **Validate/fix elevation**: sample SRTM (max of 3×3 cells around the
+   node); if OSM `ele` missing or |ele − srtm| > ~30 m, use the SRTM value
+   and flag it (jl README already noted positions/elevations are sometimes
+   off by hundreds of meters). Peaks without name are dropped; peaks
+   without ele are now kept (SRTM supplies it).
+2. **Dedup**: nodes with the same name within a few hundred meters — keep
+   the higher/better-tagged one.
+3. **Heuristic prominence** ("fake prominence"): windowed Kirmse sweep —
+   run the union-find water-level algorithm on a window around the peak
+   (e.g. 0.25–0.5°). Result is a lower bound of true prominence, exact
+   whenever the key saddle lies inside the window; cap at window relief.
+   Much cheaper than continental sweep, trivially parallel per cell.
+4. **Isolation**: distance to nearest higher SRTM cell, expanding-ring
+   search capped at ~25 km. Cheap for minor bumps (terminates fast),
+   capped for majors. The "lonely hill" signal: high isolation with modest
+   prominence still deserves a label locally.
+5. Emit TSV: name, lat, lon, ele_used, ele_src(osm/srtm), prom_est,
+   isolation_km. This file replaces/augments summits.tsv; thresholds do
+   NOT live here — the file keeps everything with prom_est ≥ ~20 m.
+
+### Stage 2 — view-time label selection (renderer/web)
+
+Candidates = visible summits (existing distance-map test). Score each,
+then greedy screen-space placement:
+
+- score ≈ prom_est weighted by apparent size (angular height above the
+  local silhouette), plus isolation bonus, plus **skyline bonus**: the
+  distance map already knows whether the summit's pixel column has sky
+  right above the silhouette it sits on — "part of a high ridge visible
+  from far" scores high even though a ridge shoulder has low prominence.
+- sort by score descending; accept a label only if no accepted label is
+  within N px horizontally (N ~ label width); optionally two rows of
+  labels (near/far) like peakfinder does.
+- Result: skyline always gets its best labels, foreground bumps only when
+  nothing better competes for the space — both complaints solved by the
+  same mechanism, and sliders/zoom could later re-run selection live
+  (it is cheap; candidates are already computed).
+
+Relation to [true prominence pipeline](#summit-database-with-computed-prominence):
+stage 1's prom_est column is a drop-in for real prominence once the
+continental sweep exists; stage 2 is needed either way and can be built
+first with the current curated TSV.
+
 ## Whole-Europe data archive (hedge against link rot)
 
 Motivation: viewfinderpanoramas.org is a one-man site (Jonathan de

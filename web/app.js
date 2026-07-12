@@ -56,25 +56,10 @@ const TERRAIN = [123, 112, 76]; // near-terrain color (khaki)
 const SKY = [149, 195, 233];    // airlight / sky color (light blue)
 
 function renderStrip(visibilityKm) {
-  const img = new ImageData(distW, distH);
-  const px = img.data;
-  const k = 3.912 / (visibilityKm * 1000.0);
-  const fade = new Float32Array(5002); // covers distMax/distStep
-  for (let d = 0; d < fade.length; ++d)
-    fade[d] = 1.0 - Math.exp(-k * d * DIST_STEP_M);
-  for (let i = 0; i < distData.length; ++i) {
-    const o = i * 4;
-    const d = distData[i];
-    if (d === 0) {
-      px[o] = SKY[0]; px[o + 1] = SKY[1]; px[o + 2] = SKY[2];
-    } else {
-      const t = fade[d];
-      px[o]     = TERRAIN[0] + (SKY[0] - TERRAIN[0]) * t;
-      px[o + 1] = TERRAIN[1] + (SKY[1] - TERRAIN[1]) * t;
-      px[o + 2] = TERRAIN[2] + (SKY[2] - TERRAIN[2]) * t;
-    }
-    px[o + 3] = 255;
-  }
+  // Tonemapping (Koschmieder fade, OkLab-interpolated) happens in WASM.
+  const ptr = api.tonemap(visibilityKm, ...TERRAIN, ...SKY);
+  const rgba = new Uint8ClampedArray(wasm.HEAPU8.buffer, ptr, distW * distH * 4);
+  const img = new ImageData(rgba, distW, distH);
   if (!strip) {
     strip = document.createElement("canvas");
     strip.width = distW;
@@ -156,6 +141,8 @@ async function main() {
        "number", "number", "number", "number", "number"]),
     width: wasm.cwrap("pano_width", "number", []),
     height: wasm.cwrap("pano_height", "number", []),
+    tonemap: wasm.cwrap("pano_tonemap", "number",
+      ["number", "number", "number", "number", "number", "number", "number"]),
     summits: wasm.cwrap("pano_summits", "string", ["string"]),
   };
 
@@ -262,6 +249,7 @@ canvas.addEventListener("wheel", (e) => {
   zoomAt(e.clientX, e.clientY, zoom * (e.deltaY < 0 ? 1.25 : 0.8));
 }, { passive: false });
 window.addEventListener("keydown", (e) => {
+  if (document.activeElement instanceof HTMLInputElement) return; // sliders own the arrows
   if (e.key === "ArrowLeft") { offsetX -= 100 / zoom; draw(); }
   if (e.key === "ArrowRight") { offsetX += 100 / zoom; draw(); }
   if (e.key === "ArrowUp") { offsetY -= 50 / zoom; draw(); }
