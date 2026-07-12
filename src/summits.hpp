@@ -23,8 +23,11 @@ struct VisibleSummit {
     int y = 0;
 };
 
-// Reads a TSV with header: "Summit" Elevation Latitude Longitude
+// Parses TSV content with header: "Summit" Elevation Latitude Longitude
 // (the format produced by scripts/download_osm_summits.py and used by panorama-jl).
+std::vector<Summit> parseSummitsTsv(std::string_view tsv);
+
+// Convenience file wrapper around parseSummitsTsv.
 std::vector<Summit> loadSummitsTsv(const std::filesystem::path &path);
 
 // Filters summits by distance/azimuth window and checks them against the
@@ -35,7 +38,8 @@ std::vector<VisibleSummit> findVisibleSummits(const View &view,
                                               const std::vector<Summit> &summits);
 
 // Draws summit labels, azimuth ticks and the horizon line over the outline
-// image and writes an RGB PNG to `outputPath`.
+// image and writes an RGB PNG to `outputPath`. Implemented in annotate.cpp
+// (OpenCV); not part of the WASM build, where JS draws on the canvas.
 void renderAnnotations(const View &view,
                        const std::vector<uint8_t> &outlines,
                        const std::vector<VisibleSummit> &summits,

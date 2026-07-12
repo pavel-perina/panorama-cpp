@@ -23,6 +23,17 @@ public:
     static constexpr int kPixelsPerDeg = 1200; // SRTM3: 3 arc-second grid
     static constexpr int kTileSize = 1201;     // rows/cols per tile, edges shared
 
+    HeightMap() = default;
+
+    // Allocates a zeroed grid covering `range`; fill it with addTileRaw().
+    explicit HeightMap(const LatLonRange &range);
+
+    // Copies one 1201x1201 big-endian int16 tile (raw .hgt content) into the
+    // grid. Voids (-32768) and out-of-range values are clamped to [0, 6000]
+    // like the Julia version, otherwise SRTM voids show up as 32 km high
+    // walls (the Rust version had this artifact).
+    void addTileRaw(int lat, int lon, const int16_t *bigEndianData);
+
     // Loads and stitches all tiles in `range` from `tileDir` (N%02dE%03d.hgt).
     // Throws std::runtime_error on missing/short files.
     static HeightMap load(const LatLonRange &range, const std::filesystem::path &tileDir);
