@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <emscripten/emscripten.h>
+#include <zstd.h>
 
 #include "distmap.hpp"
 #include "heightmap.hpp"
@@ -56,6 +57,21 @@ void pano_addTile(int lat, int lon, const int16_t *data)
 {
     if (g_heightMap)
         g_heightMap->addTileRaw(lat, lon, data);
+}
+
+// data = zstd-compressed .hgt.zst bytes; returns 1 on success, 0 on error.
+EMSCRIPTEN_KEEPALIVE
+int pano_addTileZst(int lat, int lon, const uint8_t *data, int size)
+{
+    if (!g_heightMap)
+        return 0;
+    constexpr size_t kCount = size_t(pano::HeightMap::kTileSize) * pano::HeightMap::kTileSize;
+    std::vector<int16_t> raw(kCount);
+    const size_t written = ZSTD_decompress(raw.data(), kCount * 2, data, size_t(size));
+    if (ZSTD_isError(written) || written != kCount * 2)
+        return 0;
+    g_heightMap->addTileRaw(lat, lon, raw.data());
+    return 1;
 }
 
 // Returns pointer to the row-major uint16 distance map (0 = sky, else

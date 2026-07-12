@@ -22,6 +22,11 @@ distance, refraction) are hardcoded in `src/main.cpp`. Outputs to the
 current directory: `dist_map.png` (16-bit distances), `outlines.png`,
 `panorama.png` (annotated).
 
+Tiles are read as plain `N49E015.hgt` with `N49E015.hgt.zst` as fallback
+(vendored zstd decoder, `src/3rd_party/zstd/`), so the renderer can point
+straight at the archive mirror: `./build/panorama data/hgt-zst` (it also
+expects `summits.tsv` in that directory).
+
 Before the first run fetch heightmaps and a summit list (see below):
 
 ```sh

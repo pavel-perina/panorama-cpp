@@ -20,6 +20,8 @@ const Module = await createPanoModule();
 const api = {
   reset: Module.cwrap("pano_reset", null, ["number", "number", "number", "number"]),
   addTile: Module.cwrap("pano_addTile", null, ["number", "number", "number"]),
+  addTileZst: Module.cwrap("pano_addTileZst", "number",
+    ["number", "number", "number", "number"]),
   render: Module.cwrap("pano_render", "number",
     ["number", "number", "number", "number", "number",
      "number", "number", "number", "number", "number"]),
@@ -30,16 +32,26 @@ const api = {
 
 const r = SCENE.range;
 api.reset(r.minLat, r.minLon, r.maxLat, r.maxLon);
-const ptr = Module._malloc(1201 * 1201 * 2);
+let zstTiles = 0;
 for (let lat = r.minLat; lat <= r.maxLat; ++lat) {
   for (let lon = r.minLon; lon <= r.maxLon; ++lon) {
     const name = `N${String(lat).padStart(2, "0")}E${String(lon).padStart(3, "0")}.hgt`;
-    const bytes = readFileSync(new URL(`../data/${name}`, import.meta.url));
+    // exercise the zstd path where the mirror has the tile
+    const zstUrl = new URL(`../data/hgt-zst/${name}.zst`, import.meta.url);
+    const compressed = existsSync(zstUrl);
+    const bytes = readFileSync(compressed ? zstUrl : new URL(`../data/${name}`, import.meta.url));
+    const ptr = Module._malloc(bytes.length);
     Module.HEAPU8.set(bytes, ptr);
-    api.addTile(lat, lon, ptr);
+    if (compressed) {
+      if (!api.addTileZst(lat, lon, ptr, bytes.length)) throw new Error(`bad zst ${name}`);
+      ++zstTiles;
+    } else {
+      api.addTile(lat, lon, ptr);
+    }
+    Module._free(ptr);
   }
 }
-Module._free(ptr);
+console.log(`tiles via zstd path: ${zstTiles}`);
 
 const t0 = performance.now();
 const distPtr = api.render(

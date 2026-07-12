@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(panorama LANGUAGES CXX)
+project(panorama LANGUAGES C CXX) # C: vendored zstd decoder
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,8 +18,10 @@ if(EMSCRIPTEN)
         src/heightmap.cpp
         src/distmap.cpp
         src/summits.cpp
+        src/3rd_party/zstd/zstddeclib.c
     )
     set_target_properties(pano_wasm PROPERTIES OUTPUT_NAME pano)
+    target_include_directories(pano_wasm SYSTEM PRIVATE src/3rd_party/zstd)
     target_compile_options(pano_wasm PRIVATE
         -O3 -msimd128 -Wall -Wextra -Wno-unknown-pragmas)
     target_link_options(pano_wasm PRIVATE
@@ -29,7 +31,7 @@ if(EMSCRIPTEN)
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
         -sSTACK_SIZE=1MB
-        -sEXPORTED_FUNCTIONS=_pano_reset,_pano_addTile,_pano_render,_pano_width,_pano_height,_pano_summits,_malloc,_free
+        -sEXPORTED_FUNCTIONS=_pano_reset,_pano_addTile,_pano_addTileZst,_pano_render,_pano_width,_pano_height,_pano_summits,_malloc,_free
         -sEXPORTED_RUNTIME_METHODS=cwrap,HEAPU8,HEAPU16,UTF8ToString
     )
 else()
@@ -42,7 +44,9 @@ else()
         src/distmap.cpp
         src/summits.cpp
         src/annotate.cpp
+        src/3rd_party/zstd/zstddeclib.c
     )
+    target_include_directories(panorama SYSTEM PRIVATE src/3rd_party/zstd)
 
     target_link_libraries(panorama PRIVATE
         OpenMP::OpenMP_CXX

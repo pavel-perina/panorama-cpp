@@ -117,6 +117,8 @@ async function main() {
   const api = {
     reset: Module.cwrap("pano_reset", null, ["number", "number", "number", "number"]),
     addTile: Module.cwrap("pano_addTile", null, ["number", "number", "number"]),
+    addTileZst: Module.cwrap("pano_addTileZst", "number",
+      ["number", "number", "number", "number"]),
     render: Module.cwrap("pano_render", "number",
       ["number", "number", "number", "number", "number",
        "number", "number", "number", "number", "number"]),
@@ -133,18 +135,31 @@ async function main() {
     for (let lon = r.minLon; lon <= r.maxLon; ++lon)
       tiles.push([lat, lon]);
   const tileBytes = 1201 * 1201 * 2;
-  const ptr = Module._malloc(tileBytes);
-  let loaded = 0;
+  let loaded = 0, zstCount = 0;
   for (const [lat, lon] of tiles) {
     const name = `N${String(lat).padStart(2, "0")}E${String(lon).padStart(3, "0")}.hgt`;
-    status(`Fetching tile ${++loaded}/${tiles.length}: ${name}`);
-    const resp = await fetch(`${DATA_URL}/${name}`);
+    // zstd mirror is the primary source (3x smaller); raw .hgt as fallback
+    let resp = await fetch(`${DATA_URL}/hgt-zst/${name}.zst`);
+    let compressed = true;
+    if (resp.ok) {
+      ++zstCount;
+    } else {
+      resp = await fetch(`${DATA_URL}/${name}`);
+      compressed = false;
+    }
+    status(`Fetching tile ${++loaded}/${tiles.length}: ${compressed ? `hgt-zst/${name}.zst` : name}`);
     if (!resp.ok) { console.warn(`missing tile ${name}`); continue; }
     const buf = new Uint8Array(await resp.arrayBuffer());
-    Module.HEAPU8.set(buf.subarray(0, tileBytes), ptr);
-    api.addTile(lat, lon, ptr);
+    const ptr = Module._malloc(buf.length);
+    Module.HEAPU8.set(buf, ptr);
+    if (compressed) {
+      if (!api.addTileZst(lat, lon, ptr, buf.length))
+        console.warn(`bad zst tile ${name}`);
+    } else {
+      api.addTile(lat, lon, ptr);
+    }
+    Module._free(ptr);
   }
-  Module._free(ptr);
 
   status("Rendering…");
   await new Promise(requestAnimationFrame); // let the status paint
@@ -174,7 +189,9 @@ async function main() {
   renderStrip(Number(vis.value));
 
   status(`${w}×${h} px, render ${renderMs.toFixed(0)} ms, ` +
-         `${visibleSummits.length} summits visible, total ${((performance.now() - t0) / 1000).toFixed(1)} s ` +
+         `${visibleSummits.length} summits visible` +
+         `, ${zstCount}/${tiles.length} tiles from zst mirror` +
+         `, total ${((performance.now() - t0) / 1000).toFixed(1)} s ` +
          `— drag or use arrow keys to pan`);
 }
 

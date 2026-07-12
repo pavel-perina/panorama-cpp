@@ -8,6 +8,8 @@
 #include <print>
 #include <stdexcept>
 
+#include <zstd.h>
+
 #include "geo.hpp"
 
 namespace pano {
@@ -51,16 +53,30 @@ HeightMap HeightMap::load(const LatLonRange &range, const std::filesystem::path 
         const int lon = range.minLon + i % range.tilesHoriz();
         constexpr size_t kCount = size_t(kTileSize) * kTileSize;
 
-        const std::filesystem::path path = tileDir / std::format("N{:02}E{:03}.hgt", lat, lon);
-        std::ifstream file(path, std::ios::binary);
-        if (!file)
-            throw std::runtime_error("Cannot open tile " + path.string() +
-                                     " (run scripts/download_hgt.py)");
+        // zstd-compressed tile is the primary source, plain .hgt the fallback.
+        const std::filesystem::path rawPath = tileDir / std::format("N{:02}E{:03}.hgt", lat, lon);
+        const std::filesystem::path zstPath = rawPath.string() + ".zst";
         std::vector<int16_t> raw(kCount);
-        file.read(reinterpret_cast<char *>(raw.data()), std::streamsize(kCount * 2));
-        if (size_t(file.gcount()) != kCount * 2)
-            throw std::runtime_error("Short read on tile " + path.string());
 
+        if (std::ifstream file{zstPath, std::ios::binary}) {
+            const std::vector<char> compressed(std::istreambuf_iterator<char>(file), {});
+            const size_t written = ZSTD_decompress(raw.data(), kCount * 2,
+                                                   compressed.data(), compressed.size());
+            if (ZSTD_isError(written))
+                throw std::runtime_error(std::format("{}: {}", zstPath.string(),
+                                                     ZSTD_getErrorName(written)));
+            if (written != kCount * 2)
+                throw std::runtime_error(std::format(
+                    "{}: decompressed to {} bytes, expected {} (1-arcsecond tile?)",
+                    zstPath.string(), written, kCount * 2));
+        } else if (std::ifstream file{rawPath, std::ios::binary}) {
+            file.read(reinterpret_cast<char *>(raw.data()), std::streamsize(kCount * 2));
+            if (size_t(file.gcount()) != kCount * 2)
+                throw std::runtime_error("Short read on tile " + rawPath.string());
+        } else {
+            throw std::runtime_error("Cannot open tile " + rawPath.string() +
+                                     "[.zst] (run scripts/download_hgt.py)");
+        }
         hm.addTileRaw(lat, lon, raw.data());
     }
     return hm;
