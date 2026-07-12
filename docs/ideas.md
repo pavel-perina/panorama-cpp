@@ -115,6 +115,27 @@ queries anyway.
 - Store archive outside the repo (external disk), only scripts + checksums
   committed.
 
+## Printable panorama scroll
+
+Print-quality output for a physical viewpoint panorama — the classic
+orientation-table / summit-book format, generated instead of hand-drawn.
+The native renderer already produces full-res annotated PNGs; missing is a
+print layout pass:
+
+- 360° at 20 px/deg (udeuschle-style) ≈ 7200 px wide → ~60 cm at 300 dpi,
+  or fold-out leporello strips for higher resolution; title block with
+  viewpoint name/coords/elevation, azimuth scale along the full edge.
+- Labels styled for print (black on white outlines, no fog background —
+  the existing outlines.png mode is exactly right for this).
+- QR code linking to the web app with the viewpoint pre-selected
+  (URL params: lat/lon/ele — needs the location-picker milestone anyway);
+  `qrencode` CLI or python qrcode lib in a script. panorama-jl already has
+  a project QR (project-qr.png) — tradition continues.
+- Output PDF (cairo would do this natively — another argument for the
+  planned cairo text backend) or just a print-ready PNG strip.
+
+Use case: viewpoints that have a book/board already — leave a better one.
+
 ## Renderer (carried over, see also mobile-app-plan.md)
 
 - Transcendental interpolation in ray loop (exact lat/lon every ~16th
