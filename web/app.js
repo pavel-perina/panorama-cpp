@@ -14,15 +14,19 @@ const SCENE = {
 };
 const DATA_URL = "../data";
 
-const bar = document.getElementById("bar");
+const DIST_STEP_M = 50.0; // one distance-map unit
+
 const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
-const status = (msg) => { bar.textContent = msg; };
+const status = (msg) => { document.getElementById("status").textContent = msg; };
 
 // Full rendered strip lives on an offscreen canvas; the visible canvas is a
-// draggable viewport over it.
+// draggable viewport over it. Kept around for re-tonemapping: the raw
+// distance map, and the summit list.
 let strip = null;
 let offsetX = 0;
+let distData = null, distW = 0, distH = 0;
+let visibleSummits = [];
 
 function draw() {
   if (!strip) return;
@@ -33,21 +37,40 @@ function draw() {
   ctx.drawImage(strip, -offsetX, 0);
 }
 
-function makeStrip(dist, w, h) {
-  let max = 1;
-  for (let i = 0; i < dist.length; ++i) if (dist[i] > max) max = dist[i];
-  const img = new ImageData(w, h);
+// Aerial-perspective tonemap (Koschmieder): terrain fades into the sky with
+// distance; visibilityKm is the meteorological visibility V.
+const TERRAIN = [123, 112, 76]; // near-terrain color (khaki)
+const SKY = [149, 195, 233];    // airlight / sky color (light blue)
+
+function renderStrip(visibilityKm) {
+  const img = new ImageData(distW, distH);
   const px = img.data;
-  for (let i = 0; i < dist.length; ++i) {
-    const v = dist[i] ? Math.round(255 - (dist[i] / max) * 200) : 0; // sky black, near bright
+  const k = 3.912 / (visibilityKm * 1000.0);
+  // fade[] lookup per distance value; 5001 covers distMax/distStep
+  const fade = new Float32Array(5002);
+  for (let d = 0; d < fade.length; ++d)
+    fade[d] = 1.0 - Math.exp(-k * d * DIST_STEP_M);
+  for (let i = 0; i < distData.length; ++i) {
     const o = i * 4;
-    px[o] = px[o + 1] = px[o + 2] = v;
+    const d = distData[i];
+    if (d === 0) {
+      px[o] = SKY[0]; px[o + 1] = SKY[1]; px[o + 2] = SKY[2];
+    } else {
+      const t = fade[d];
+      px[o]     = TERRAIN[0] + (SKY[0] - TERRAIN[0]) * t;
+      px[o + 1] = TERRAIN[1] + (SKY[1] - TERRAIN[1]) * t;
+      px[o + 2] = TERRAIN[2] + (SKY[2] - TERRAIN[2]) * t;
+    }
     px[o + 3] = 255;
   }
-  strip = document.createElement("canvas");
-  strip.width = w;
-  strip.height = h;
+  if (!strip) {
+    strip = document.createElement("canvas");
+    strip.width = distW;
+    strip.height = distH;
+  }
   strip.getContext("2d").putImageData(img, 0, 0);
+  drawAnnotations(visibleSummits, SCENE);
+  draw();
 }
 
 function drawAnnotations(summits, view) {
@@ -56,12 +79,12 @@ function drawAnnotations(summits, view) {
   c.font = "16px 'Fira Sans', sans-serif";
   c.lineWidth = 1;
   for (const s of summits) {
-    c.strokeStyle = "#839496";
+    c.strokeStyle = "#4d5a63";
     c.beginPath();
     c.moveTo(s.x + 0.5, s.y);
     c.lineTo(s.x + 0.5, labelBaseY);
     c.stroke();
-    c.fillStyle = "#268bd2";
+    c.fillStyle = "#0b4d7a";
     c.save();
     c.translate(s.x + 5, labelBaseY - 5);
     c.rotate(-Math.PI / 4);
@@ -69,8 +92,8 @@ function drawAnnotations(summits, view) {
     c.restore();
   }
   // azimuth ticks + horizon
-  c.strokeStyle = "#839496";
-  c.fillStyle = "#268bd2";
+  c.strokeStyle = "#4d5a63";
+  c.fillStyle = "#0b4d7a";
   c.textAlign = "center";
   for (let az = Math.ceil(view.azMinDeg); az <= Math.floor(view.azMaxDeg); ++az) {
     const x = Math.round((az - view.azMinDeg) * (Math.PI / 180) / view.stepRad) + 0.5;
@@ -82,7 +105,7 @@ function drawAnnotations(summits, view) {
   }
   c.textAlign = "left";
   const horizonY = Math.round(view.elMaxRad / view.stepRad) + 0.5;
-  c.strokeStyle = "#eee8d5";
+  c.strokeStyle = "#7d97a8";
   c.beginPath();
   c.moveTo(0, horizonY); c.lineTo(strip.width, horizonY);
   c.stroke();
@@ -131,19 +154,27 @@ async function main() {
     SCENE.azMinDeg, SCENE.azMaxDeg, SCENE.elMinRad, SCENE.elMaxRad,
     SCENE.stepRad, SCENE.distMaxM, SCENE.refraction);
   const w = api.width(), h = api.height();
-  const dist = Module.HEAPU16.subarray(distPtr / 2, distPtr / 2 + w * h);
+  // copy out of the WASM heap: memory growth may detach the view later
+  distData = Module.HEAPU16.slice(distPtr / 2, distPtr / 2 + w * h);
+  distW = w;
+  distH = h;
   const renderMs = performance.now() - t1;
-
-  makeStrip(dist, w, h);
 
   status("Finding summits…");
   const tsv = await (await fetch(`${DATA_URL}/summits.tsv`)).text();
-  const visible = JSON.parse(api.summits(tsv));
-  drawAnnotations(visible, SCENE);
+  visibleSummits = JSON.parse(api.summits(tsv));
 
-  draw();
+  // Visibility slider re-tonemaps without re-raycasting.
+  const vis = document.getElementById("vis");
+  document.getElementById("visctl").style.display = "";
+  vis.addEventListener("input", () => {
+    document.getElementById("visval").textContent = `${vis.value} km`;
+    renderStrip(Number(vis.value));
+  });
+  renderStrip(Number(vis.value));
+
   status(`${w}×${h} px, render ${renderMs.toFixed(0)} ms, ` +
-         `${visible.length} summits visible, total ${((performance.now() - t0) / 1000).toFixed(1)} s ` +
+         `${visibleSummits.length} summits visible, total ${((performance.now() - t0) / 1000).toFixed(1)} s ` +
          `— drag or use arrow keys to pan`);
 }
 
