@@ -1,10 +1,9 @@
-build/
+build*/
 data/*.hgt
 data/*.zip
 data/osm-peaks/
 data/hgt-zst/
 data/peaks-europe.tsv
 *.png
-build-wasm/
 dist_native.bin
 data/hgt1-zst/

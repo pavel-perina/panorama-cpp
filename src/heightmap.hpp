@@ -46,17 +46,26 @@ public:
     // Nearest-neighbor sample at geographic coordinates, clamped to the grid.
     uint16_t at(double latDeg, double lonDeg) const
     {
-        return m_data[indexOf(latDeg, lonDeg)];
+        double x, y;
+        gridCoords(latDeg, lonDeg, x, y);
+        return atGrid(x, y);
     }
 
-    size_t indexOf(double latDeg, double lonDeg) const
+    // Continuous grid coordinates (column x, row y) of a geographic position;
+    // unclamped, so they can be interpolated before sampling.
+    void gridCoords(double latDeg, double lonDeg, double &x, double &y) const
     {
-        const double y = (double(m_range.maxLat + 1) - latDeg) * kPixelsPerDeg;
-        const double x = (lonDeg - double(m_range.minLon)) * kPixelsPerDeg;
+        y = (double(m_range.maxLat + 1) - latDeg) * kPixelsPerDeg;
+        x = (lonDeg - double(m_range.minLon)) * kPixelsPerDeg;
+    }
+
+    // Sample at continuous grid coordinates, clamped to the grid.
+    uint16_t atGrid(double x, double y) const
+    {
         // negative -> 0 via the max(); the (int) truncation matches Julia/Rust
         const int c = std::min(int(std::max(x, 0.0)), m_width - 1);
         const int r = std::min(int(std::max(y, 0.0)), m_height - 1);
-        return size_t(r) * m_width + c;
+        return m_data[size_t(r) * m_width + c];
     }
 
 private:

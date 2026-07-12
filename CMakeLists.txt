@@ -9,6 +9,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+option(PANO_EXACT_RAYCAST
+    "Exact per-sample geographic transform in the ray loop (slow; A/B verification)" OFF)
+if(PANO_EXACT_RAYCAST)
+    add_compile_definitions(PANO_EXACT_RAYCAST)
+endif()
+
 if(EMSCRIPTEN)
     # WASM library for the web app: compute only, no OpenCV/OpenMP.
     # Build:  source ~/emsdk/emsdk_env.sh && emcmake cmake -B build-wasm -S . && cmake --build build-wasm
@@ -57,6 +63,9 @@ else()
     target_include_directories(panorama SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(panorama PRIVATE -O3 -march=native -Wall -Wextra)
+        # -ffp-contract=off: no FMA fusion, keeps the distance map
+        # bit-identical to the WASM build (verified by web/test-node.mjs)
+        target_compile_options(panorama PRIVATE
+            -O3 -march=native -ffp-contract=off -Wall -Wextra)
     endif()
 endif()
