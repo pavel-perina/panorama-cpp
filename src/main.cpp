@@ -10,6 +10,7 @@
 #include <opencv2/imgcodecs.hpp>
 
 #include "distmap.hpp"
+#include "geo.hpp"
 #include "heightmap.hpp"
 #include "summits.hpp"
 #include "view.hpp"
@@ -30,19 +31,30 @@ int main(int argc, char **argv)
     const std::filesystem::path dataDir = argc > 1 ? argv[1] : "data";
 
     const LatLonRange range{.minLat = 47, .minLon = 15, .maxLat = 50, .maxLon = 21};
+#if 0
+    // Praded    
     const PositionLLE eye{.lat = 50.08309, .lon = 17.23094, .ele = 1510.0};
-
+#else
+    // Kamenice
+    const PositionLLE eye{.lat = 49.6013028, .lon = 16.1646667, .ele = 780.0};
+#endif
     try {
         auto t0 = std::chrono::steady_clock::now();
         const HeightMap heightMap = HeightMap::load(range, dataDir);
         std::println("Loading took {:.3f} seconds", secondsSince(t0));
-
+#if 0
         const View view(SphereEarth{}, eye,
                         toRadians(90.0), toRadians(135.0), // azimuth window
                         -0.0560, 0.0339,                   // elevation window [rad]
                         0.0001,                            // 0.1 mrad per pixel
                         250.0e3, 1.18);                    // max distance, refraction
-
+#else
+        const View view(SphereEarth{}, eye,
+                        toRadians(0.0), toRadians(60.0), // azimuth window
+                        -0.0560, 0.0339,                   // elevation window [rad]
+                        0.0001,                            // 0.1 mrad per pixel
+                        250.0e3, 1.18);                    // max distance, refraction
+#endif
         t0 = std::chrono::steady_clock::now();
         const std::vector<uint16_t> distMap = makeDistMap(view, heightMap);
         std::println("Distance map took {:.3f} seconds", secondsSince(t0));

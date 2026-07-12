@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>panorama-cpp web</title>
+<style>
+  body { margin: 0; background: #002b36; color: #839496;
+         font: 14px/1.4 system-ui, sans-serif; }
+  #bar { padding: 6px 10px; }
+  #view { display: block; width: 100vw; height: auto;
+          touch-action: none; cursor: grab; image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <span id="status">panorama-cpp — loading…</span>
+  <label id="visctl" style="float:right; display:none">
+    visibility <input id="vis" type="range" min="10" max="300" step="5" value="100"
+                      style="vertical-align:middle"> <span id="visval">100 km</span>
+  </label>
+</div>
+<canvas id="view"></canvas>
+<script src="../build-wasm/pano.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
