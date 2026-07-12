@@ -1,4 +1,7 @@
 build/
 data/*.hgt
 data/*.zip
+data/osm-peaks/
+data/hgt-zst/
+data/peaks-europe.tsv
 *.png
