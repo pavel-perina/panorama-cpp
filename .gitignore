@@ -1,0 +1,4 @@
+build/
+data/*.hgt
+data/*.zip
+*.png
