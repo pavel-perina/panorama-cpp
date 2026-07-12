@@ -59,12 +59,13 @@ public:
         x = (lonDeg - double(m_range.minLon)) * kPixelsPerDeg;
     }
 
-    // Sample at continuous grid coordinates, clamped to the grid.
+    // Nearest-neighbor sample at continuous grid coordinates, clamped.
+    // (+0.5: Julia/Rust truncated, which shifted the sampled profile by half
+    // a cell toward +lat/+lon and left summit labels ~4 px off the peaks.)
     uint16_t atGrid(double x, double y) const
     {
-        // negative -> 0 via the max(); the (int) truncation matches Julia/Rust
-        const int c = std::min(int(std::max(x, 0.0)), m_width - 1);
-        const int r = std::min(int(std::max(y, 0.0)), m_height - 1);
+        const int c = std::min(int(std::max(x + 0.5, 0.0)), m_width - 1);
+        const int r = std::min(int(std::max(y + 0.5, 0.0)), m_height - 1);
         return m_data[size_t(r) * m_width + c];
     }
 
