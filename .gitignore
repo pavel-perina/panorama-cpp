@@ -11,3 +11,4 @@ dist_native.bin
 data/hgt1-zst/
 data/prominence.tsv
 data/peaks-rejected.tsv
+data/fonts/*.ttf
