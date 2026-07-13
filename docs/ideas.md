@@ -231,9 +231,15 @@ one actually squints at through binoculars.
   parity unaffected. Avoid std::async (per-task overhead, no balancing);
   TBB is too big a dependency for one primitive.
 - **Drop OpenCV** — audit says it only provides: 3× imwrite, AA 1 px
-  lines, Hershey text (rotated via warpAffine), gray→BGR. Replace with
-  lodepng (single file; does the 16-bit gray PNG that stb/fpng cannot),
-  own AA line drawing on raw buffers, and own text (below). Removes the
+  lines, Hershey text (rotated via warpAffine), gray→BGR. PNG writing:
+  system libpng16 (`find_package(PNG)`; libpng16-devel 1.6.44 installed,
+  does 16-bit gray natively). WASM links no system libs by construction
+  and needs no PNG anyway — JS canvas owns output, and a future
+  "download PNG" button is `canvas.toBlob()`; should C-side encoding in
+  wasm ever be needed (16-bit export?), Emscripten's `-sUSE_LIBPNG=1`
+  port statically links libpng+zlib (~200 KB). lodepng stays the
+  single-file fallback if a Windows port minds the dependency. Plus own
+  AA line drawing on raw buffers and own text (below). Removes the
   heaviest dependency before any MSVC/SDL3 port.
 - **Text: baked SDF/MSDF atlas, no HarfBuzz.** HarfBuzz is a shaping
   engine (Arabic joining, Indic reordering); CZ/SK/DE/PL/HU/RO + Greek +
