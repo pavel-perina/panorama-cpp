@@ -47,12 +47,16 @@ std::vector<VisibleSummit> findVisibleSummits(const View &view,
                                               const std::vector<uint16_t> &distMap,
                                               const std::vector<Summit> &summits);
 
+class SdfFont;
+
 // Draws summit labels, azimuth ticks and the horizon line over the outline
 // image and writes an RGB PNG to `outputPath`. Implemented in annotate.cpp
-// (OpenCV); not part of the WASM build, where JS draws on the canvas.
+// (OpenCV lines/PNG, SDF text); not part of the WASM build, where JS draws
+// on the canvas.
 void renderAnnotations(const View &view,
                        const std::vector<uint8_t> &outlines,
                        const std::vector<VisibleSummit> &summits,
+                       const SdfFont &font,
                        const std::filesystem::path &outputPath);
 
 } // namespace pano

@@ -52,6 +52,7 @@ else()
         src/distmap.cpp
         src/summits.cpp
         src/annotate.cpp
+        src/sdftext.cpp
         src/common/colors.cpp
         src/3rd_party/zstd/zstddeclib.c
     )

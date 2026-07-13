@@ -1,4 +1,6 @@
-// OpenCV implementation of renderAnnotations — desktop build only.
+// renderAnnotations — desktop build only. OpenCV draws lines and writes the
+// PNG; text is our SDF font (UTF-8, crisp at 45° — Hershey fonts were
+// ASCII-only and mangled diacritics).
 
 #include "summits.hpp"
 
@@ -9,46 +11,26 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include "sdftext.hpp"
+
 namespace pano {
 
 namespace {
 
 // Solarized-ish palette used by the Julia version (BGR order).
 const cv::Scalar kLineColor(150, 148, 131);
-const cv::Scalar kTextColor(210, 139, 38);
+const uint8_t kTextColor[3] = {210, 139, 38};
 const cv::Scalar kHorizonColor(213, 232, 238);
 
-// OpenCV's putText cannot rotate text, so render the label into a mask,
-// warp it and paint the masked pixels. anchor = bottom-left of the text
-// baseline in image coordinates, angle counterclockwise.
-void drawRotatedText(cv::Mat &img, const std::string &text, cv::Point2d anchor,
-                     double angleDeg, const cv::Scalar &color, double fontScale)
-{
-    const int font = cv::FONT_HERSHEY_SIMPLEX;
-    const int thickness = 1;
-    int baseline = 0;
-    const cv::Size ts = cv::getTextSize(text, font, fontScale, thickness, &baseline);
-
-    cv::Mat mask = cv::Mat::zeros(ts.height + baseline + 2, ts.width + 2, CV_8U);
-    const cv::Point2d origin(1.0, ts.height + 1.0); // baseline start inside the patch
-    cv::putText(mask, text, cv::Point(origin), font, fontScale, 255, thickness, cv::LINE_AA);
-
-    // Affine map: rotate around the baseline start, then move it to `anchor`.
-    const double a = angleDeg * kPi / 180.0;
-    const double c = std::cos(a), s = std::sin(a);
-    cv::Mat m = (cv::Mat_<double>(2, 3)
-                 << c, s, anchor.x - c * origin.x - s * origin.y,
-                    -s, c, anchor.y + s * origin.x - c * origin.y);
-    cv::Mat warped = cv::Mat::zeros(img.size(), CV_8U);
-    cv::warpAffine(mask, warped, m, img.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT);
-    img.setTo(color, warped > 127);
-}
+constexpr double kLabelSizePx = 16.0; // matches the web app's label font size
+constexpr double kTickSizePx = 13.0;
 
 } // namespace
 
 void renderAnnotations(const View &view,
                        const std::vector<uint8_t> &outlines,
                        const std::vector<VisibleSummit> &summits,
+                       const SdfFont &font,
                        const std::filesystem::path &outputPath)
 {
     const int width = view.outWidth;
@@ -63,7 +45,8 @@ void renderAnnotations(const View &view,
         cv::line(img, cv::Point(summit.x, summit.y), cv::Point(summit.x, int(kLabelBaseY)),
                  kLineColor, 1, cv::LINE_AA);
         const std::string label = std::format("{} ({:.0f} km)", summit.name, summit.distanceM / 1000.0);
-        drawRotatedText(img, label, {double(summit.x) + 5.0, kLabelBaseY - 5.0}, 45.0, kTextColor, 0.5);
+        font.drawText(img.data, width, height, 3, label,
+                      double(summit.x) + 5.0, kLabelBaseY - 5.0, kLabelSizePx, 45.0, kTextColor);
     }
 
     // Azimuth ticks and degree labels.
@@ -73,10 +56,10 @@ void renderAnnotations(const View &view,
         const int x = int(std::lround((toRadians(double(az)) - view.azimuthMinR) / view.angularStepR));
         cv::line(img, {x, 38}, {x, 42}, kLineColor, 1, cv::LINE_AA);
         cv::line(img, {x, 63}, {x, 68}, kLineColor, 1, cv::LINE_AA);
-        const std::string label = std::format("{}", az >= 0 ? az : az + 360);
-        const cv::Size ts = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, nullptr);
-        cv::putText(img, label, {x - ts.width / 2, 58}, cv::FONT_HERSHEY_SIMPLEX, 0.5,
-                    kTextColor, 1, cv::LINE_AA);
+        const std::string label = std::format("{}°", az >= 0 ? az : az + 360);
+        font.drawText(img.data, width, height, 3, label,
+                      x - font.textWidth(label, kTickSizePx) / 2.0, 58.0,
+                      kTickSizePx, 0.0, kTextColor);
     }
 
     // Horizon line (elevation angle 0).

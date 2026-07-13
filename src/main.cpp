@@ -12,6 +12,7 @@
 #include "distmap.hpp"
 #include "geo.hpp"
 #include "heightmap.hpp"
+#include "sdftext.hpp"
 #include "summits.hpp"
 #include "view.hpp"
 
@@ -80,7 +81,11 @@ int main(int argc, char **argv)
         const auto summits = loadSummitsTsv(summitsPath);
         const auto visible = findVisibleSummits(view, heightMap, distMap, summits);
         std::println("Saving panorama.png");
-        renderAnnotations(view, outlines, visible, "panorama.png");
+        auto fontPath = dataDir / "fonts" / "font-sdf.bin";
+        if (!std::filesystem::exists(fontPath))
+            fontPath = "data/fonts/font-sdf.bin"; // dataDir may be the tile mirror
+        const SdfFont font = SdfFont::load(fontPath);
+        renderAnnotations(view, outlines, visible, font, "panorama.png");
     } catch (const std::exception &e) {
         std::println(stderr, "Error: {}", e.what());
         return 1;
