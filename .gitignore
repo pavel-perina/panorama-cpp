@@ -9,3 +9,6 @@ data/peaks-geofabrik.tsv
 *.png
 dist_native.bin
 data/hgt1-zst/
+data/prominence.tsv
+data/peaks-rated.tsv
+data/peaks-rejected.tsv

@@ -45,6 +45,8 @@ the script location, so they work from any CWD). Summary:
 | `mirror_hgt.py` | archival mirror of **all Europe** heightmaps, zstd-recompressed | `data/hgt-zst/N49E015.hgt.zst`, … |
 | `download_osm_summits.py` | quick bbox → summit TSV for the renderer (small areas) | `data/summits.tsv` |
 | `download_osm_peaks.py` | archival crawl of **all Europe** OSM peaks, raw JSON per 1×1° cell + offline merge step | `data/osm-peaks/*.json.zst`, `data/peaks-europe.tsv` |
+| `extract_geofabrik_peaks.py` | offline peak extraction from manually downloaded Geofabrik country PBFs | `data/geofabrik-peaks/*-peaks.json.zst`, `data/peaks-geofabrik.tsv` |
+| `build_peaks_db.py` | peak rating stage 1: match OSM peaks against the `prominence` tool's sweep | `data/peaks-rated.tsv`, `data/peaks-rejected.tsv` |
 
 The two `*_hgt` and the two `*_osm_*` scripts intentionally overlap: the
 short ones serve the renderer today, the archive ones hedge against data
@@ -103,6 +105,40 @@ merges all cells into `data/peaks-europe.tsv`, keeping named peaks with a
 parsable `ele` tag (in CZ roughly half the named peaks lack one — their
 elevations will eventually come from heightmaps instead, see the prominence
 pipeline in docs/ideas.md).
+
+## Peak rating pipeline (stage 1)
+
+Turns raw OSM peaks into a rated database (docs/ideas.md "Peak rating").
+The work is split by language on purpose:
+
+- **C++** (`prominence`, native-only CMake target — not part of the WASM
+  build) does the one numerically heavy step: a Kirmse water-level
+  union-find sweep over ~100M stitched heightmap cells, emitting every grid
+  local maximum with its prominence, key saddle and isolation. ~12 s for
+  CZ+AT+SK; pure Python would take about an hour per rerun.
+- **Python** (`build_peaks_db.py`) does the messy-but-cheap data cleaning:
+  OSM JSON parsing, elevation repair, dedup, accept/reject decisions.
+  Reruns in ~1.5 s, so matching heuristics can be tweaked freely without
+  touching the expensive sweep.
+
+They meet at `data/prominence.tsv`:
+
+```sh
+cmake --build build -j --target prominence
+./build/prominence 46 9 50 22            # minLat minLon maxLat maxLon
+./build/prominence 46 9 50 22 data 10 data/prominence.tsv   # + defaults spelled out
+uv run scripts/build_peaks_db.py         # -> peaks-rated.tsv / peaks-rejected.tsv
+uv run scripts/build_peaks_db.py data/osm-peaks/*.json.zst  # alternate source
+```
+
+Load the sweep region generously around the area of interest: prominence is
+exact only when a peak's key saddle lies inside the region (fewer escape
+routes to higher ground otherwise → overestimate). Only named OSM peaks are
+rated; everything rejected lands in `peaks-rejected.tsv` with a reason
+(no prominent SRTM peak nearby / low prominence / duplicate / outside
+region). `peaks-rated.tsv` keeps summits.tsv column order, so the renderer
+can read it directly; extra columns carry `EleSrc`, `Prominence`, `Saddle`,
+`IsolationKm` for view-time label selection (stage 2, not yet built).
 
 ## Data sources
 

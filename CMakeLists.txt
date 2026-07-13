@@ -72,4 +72,18 @@ else()
         target_compile_options(panorama PRIVATE
             -O3 -march=native -ffp-contract=off -Wall -Wextra)
     endif()
+
+    # Offline prominence/isolation sweep for the peak database
+    # (docs/ideas.md "Peak rating"; consumed by scripts/build_peaks_db.py).
+    add_executable(prominence
+        src/prominence_main.cpp
+        src/heightmap.cpp
+        src/3rd_party/zstd/zstddeclib.c
+    )
+    target_include_directories(prominence PRIVATE src)
+    target_include_directories(prominence SYSTEM PRIVATE src/3rd_party/zstd)
+    target_link_libraries(prominence PRIVATE OpenMP::OpenMP_CXX)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(prominence PRIVATE -O3 -march=native -Wall -Wextra)
+    endif()
 endif()
