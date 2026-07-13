@@ -33,7 +33,9 @@ let zoom = 1.0;
 
 function clampZoom(z) {
   const vh = window.innerHeight - document.getElementById("bar").offsetHeight;
-  return Math.max(strip ? vh / strip.height : 0.2, Math.min(6, z));
+  // min: fit height, but never force stretching past 100% on tall screens
+  const min = strip ? Math.min(1, vh / strip.height) : 0.2;
+  return Math.max(min, Math.min(6, z));
 }
 
 function draw() {
@@ -266,6 +268,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown") { offsetY += 50 / zoom; draw(); }
   if (e.key === "+" || e.key === "=") zoomAt(canvas.width / 2, canvas.height / 2, zoom * 1.25);
   if (e.key === "-") zoomAt(canvas.width / 2, canvas.height / 2, zoom * 0.8);
+  if (e.key === "0") zoomAt(canvas.width / 2, canvas.height / 2, 1.0); // reset to 100%
 });
 window.addEventListener("resize", draw);
 

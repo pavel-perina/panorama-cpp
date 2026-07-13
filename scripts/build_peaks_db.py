@@ -171,6 +171,33 @@ def main() -> None:
             accepted.append((name, ele, lat, lon, ele_src, prom, saddle, isolation))
 
     accepted.sort(key=lambda r: -r[5])
+
+    # Same peak mapped as several OSM nodes that matched *different* sweep
+    # bumps: same name (or shared bilingual component, "Orlica / Vrchmezí")
+    # within 1.5 km. Processing in prominence order keeps the real summit.
+    def name_parts(name: str) -> set[str]:
+        return {p.strip().casefold() for p in name.split("/")}
+
+    kept: list[tuple] = []
+    kept_grid: dict[tuple[int, int], list[int]] = {}
+    for row in accepted:
+        name, lat, lon = row[0], row[2], row[3]
+        parts = name_parts(name)
+        key = (int(lat / 0.02), int(lon / 0.02))  # ~2.2 km cells
+        dup_of = None
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                for k in kept_grid.get((key[0] + dy, key[1] + dx), ()):
+                    if parts & name_parts(kept[k][0]) and \
+                            dist_m(lat, lon, kept[k][2], kept[k][3]) < 1500.0:
+                        dup_of = kept[k][0]
+                        break
+        if dup_of is not None:
+            rejected.append((name, lat, lon, f"duplicate: same name as \"{dup_of}\" nearby"))
+        else:
+            kept_grid.setdefault(key, []).append(len(kept))
+            kept.append(row)
+    accepted = kept
     with ACCEPTED_TSV.open("w", encoding="utf-8") as f:
         f.write('"Summit"\t"Elevation"\t"Latitude"\t"Longitude"'
                 '\t"EleSrc"\t"Prominence"\t"Saddle"\t"IsolationKm"\n')

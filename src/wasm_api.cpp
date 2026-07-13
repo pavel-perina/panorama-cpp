@@ -154,8 +154,9 @@ const char *pano_summits(const char *tsv)
                 g_summitsJson += ',';
             g_summitsJson += "{\"name\":\"";
             appendJsonEscaped(g_summitsJson, visible[i].name);
-            g_summitsJson += std::format("\",\"x\":{},\"y\":{},\"distanceM\":{:.0f}}}",
-                                         visible[i].x, visible[i].y, visible[i].distanceM);
+            g_summitsJson += std::format("\",\"x\":{},\"y\":{},\"distanceM\":{:.0f},\"prom\":{:.0f}}}",
+                                         visible[i].x, visible[i].y, visible[i].distanceM,
+                                         std::min(visible[i].prominence, 9999.0));
         }
     }
     g_summitsJson += "]";

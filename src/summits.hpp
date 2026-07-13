@@ -24,6 +24,7 @@ struct VisibleSummit {
     double distanceM = 0.0;
     int x = 0;
     int y = 0;
+    double prominence = 0.0;
 };
 
 // Parses TSV content with header: "Summit" Elevation Latitude Longitude

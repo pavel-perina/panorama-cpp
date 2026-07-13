@@ -1,5 +1,6 @@
 #include "summits.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <print>
@@ -141,13 +142,36 @@ std::vector<VisibleSummit> findVisibleSummits(const View &view,
             minProm *= 0.5;
         if (summit.prominence < minProm)
             continue;
-        std::println("{:>25} is visible at azimuth {:6.2f}°, distance {:6.2f} km",
-                     summit.name, toDegrees(azimuthR) < 0.0 ? toDegrees(azimuthR) + 360.0 : toDegrees(azimuthR),
-                     distanceM / 1000.0);
-        visible.push_back({summit.name, distanceM, x, y});
+        visible.push_back({summit.name, distanceM, x, y, summit.prominence});
     }
-    std::println("Visible summits: {}", visible.size());
-    return visible;
+
+    // Greedy label spacing: rotated labels need ~24 px of horizontal room,
+    // so in prominence order keep only summits with no stronger label
+    // nearby. Resolves stacked ridges (a 60 km hill in front of an 85 km
+    // one at the same azimuth) in favor of the more prominent peak.
+    constexpr int kMinLabelSepPx = 24;
+    std::sort(visible.begin(), visible.end(), [](const VisibleSummit &a, const VisibleSummit &b) {
+        return a.prominence != b.prominence ? a.prominence > b.prominence
+                                            : a.distanceM < b.distanceM;
+    });
+    std::vector<VisibleSummit> selected;
+    for (VisibleSummit &cand : visible) {
+        const bool crowded = std::any_of(selected.begin(), selected.end(),
+                                         [&](const VisibleSummit &s) {
+                                             return std::abs(s.x - cand.x) < kMinLabelSepPx;
+                                         });
+        if (!crowded)
+            selected.push_back(std::move(cand));
+    }
+    for (const VisibleSummit &s : selected)
+        std::println("{:>25} is visible at azimuth {:6.2f}°, distance {:6.2f} km",
+                     s.name, toDegrees(view.azimuthMinR + s.x * view.angularStepR) < 0.0
+                                 ? toDegrees(view.azimuthMinR + s.x * view.angularStepR) + 360.0
+                                 : toDegrees(view.azimuthMinR + s.x * view.angularStepR),
+                     s.distanceM / 1000.0);
+    std::println("Visible summits: {} ({} suppressed by label spacing)",
+                 selected.size(), visible.size() - selected.size());
+    return selected;
 }
 
 } // namespace pano
