@@ -115,6 +115,63 @@ queries anyway.
 - Store archive outside the repo (external disk), only scripts + checksums
   committed.
 
+## Tile visibility index (fetch only tiles that can matter)
+
+Problem: the app currently fetches a hardcoded tile range as if Mount
+Everest could be anywhere — but from a Czech viewpoint the Polish lowlands
+to the north are provably invisible long before 250 km. Precompute
+conservative visibility bounds so mobile/web fetches only tiles that can
+contribute. Game engines call this a PVS; virtual globes call it horizon
+culling. Three levels, all tiny:
+
+### Level 1 — smooth-Earth reach, one number per tile (~3 KB Europe)
+
+Over a smooth Earth with refraction-scaled radius R′ ≈ 7520 km, observer
+at h₀ and peak at M can see each other at most at
+
+    d_max = sqrt(2 R′ h₀) + sqrt(2 R′ M)
+
+The second term is per-tile: precompute `maxEle` per tile (scan the zst
+mirror once, `scripts/build_tile_index.py` → `data/tile_maxele.tsv`).
+Numbers: Sněžka tile reaches ~155 km, flat Polish tile (150 m) ~47 km,
+Kamenice observer term (780 m) ~108 km → Polish tile 200 km away is
+provably invisible. Key design rule: the **observer term is never
+precomputed** — h₀ is known at view time (user may sit on a 100 m tower or
+raise the eye to see over the local hill), so compute it live; only
+target/occlusion data gets baked. Conservative in the safe direction
+(ignores blocking terrain — real terrain only sees less). Fetch-time
+filter is one line in app.js. Do this first; an hour of work, most of the
+practical win.
+
+### Level 2 — coarse occlusion prepass, per-direction limits (~1 MB Europe)
+
+0.1° (~10 km) block grid with per-block **min and max** elevation. At view
+time, before fetching, run the existing raycaster on the coarse grid —
+few hundred columns × ~25 samples, microseconds — to get a per-azimuth
+upper bound on useful distance → visibility fan → fetch only tiles the
+fan touches. Conservativeness rule: block **max** is valid for targets
+("could something here poke above the sightline?"), block **min** for
+occluders ("does terrain here provably block?") — min keeps see-through
+valleys open. A false "visible" costs a download; a false "blocked" would
+amputate the panorama. Realistic cut for a CZ interior 360° view: ~30
+tiles → 15–20.
+
+Bonuses from the same structure: the min/max pyramid is the "maximum
+mipmaps" acceleration structure from GPU terrain ray-marching — the
+renderer itself could stride through provably-empty foreground instead of
+stepping every 50 m. And the reverse query ("from which blocks does peak X
+clear the sightline?") gives viewshed maps nearly free.
+
+### Level 3 — tile-pair PVS bits (~280 KB Europe, offline)
+
+For every ordered tile pair, one bit: "can any observer in A possibly see
+terrain in B", computed offline with observer ≤ maxEle(A) + Δ headroom
+(Δ ~ 100–200 m covers towers; sqrt makes headroom cheap — 200 m costs
+~13 km of reach). Download set becomes a single row lookup. Runtime
+guard: if actual h₀ > maxEle(A) + Δ, ignore the bits and fall back to the
+live level-1 bound — fatter set, never a wrong one. Only worth building
+if offline tile pre-caching for hiking becomes real.
+
 ## Printable panorama scroll
 
 Print-quality output for a physical viewpoint panorama — the classic
