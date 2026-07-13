@@ -172,6 +172,51 @@ guard: if actual h₀ > maxEle(A) + Δ, ignore the bits and fall back to the
 live level-1 bound — fatter set, never a wrong one. Only worth building
 if offline tile pre-caching for hiking becomes real.
 
+## Interactive desktop app (ImGui/SDL3 lab first, Qt/QML if it becomes a product)
+
+The core (heightmap/distmap/summits) has no UI dependencies — OpenCV only
+touches main.cpp/annotate.cpp, and the WASM build proves the core drives
+fine through a thin interface. Either shell is a day of plumbing.
+
+- **ImGui + SDL3** = interactive lab: live sliders (visibility re-tonemap,
+  refraction re-raycast), hover readout of distance/azimuth from the
+  distance map, click an unlabeled bump → query rated/rejected DB for the
+  reason, tune gate constants with immediate feedback. ImGui's FreeType
+  atlas renders UTF-8 labels properly — retires the OpenCV Hershey
+  diacritics problem without Cairo.
+- **Qt/QML** earns its weight only as a product: QtLocation location
+  picker, QPrinter → PDF (printable scroll), file dialogs. Framework
+  ceremony that experimentation doesn't need; the mobile PWA may claim
+  the product role anyway.
+
+**Render only the viewport.** Columns are independent (no cross-column
+state), so rendering an azimuth sub-window is trivially exact. A 1920 px
+viewport is ~18 % of the 10 472-column full strip → ~27 ms native, i.e.
+real-time pan at 1080p and still a fraction of the strip at 4K.
+Speculatively render a margin around the viewport (grayscale distance
+data is cheap) and re-render outward on idle.
+
+## "What is that" query service (beyond peaks)
+
+Query: from (49.1454, 15.6990), what is at azimuth 35.12° distance ~65 km?
+Answer should rank *any* identifiable feature near that ray: hill, village,
+radio tower, chimney, power plant cooling tower, castle ruin — the things
+one actually squints at through binoculars.
+
+- Data: generalize extract_geofabrik_peaks.py into a tags-filter list —
+  `place=village/town/city`, `man_made=tower/mast/chimney/works`,
+  `power=plant`, `historic=castle` … from the same PBF extracts → one
+  SQLite/TSV of (type, name, lat, lon, ele?, height-tag).
+- Matching: candidate features inside an angular/distance tolerance cone
+  around the ray; verify against the distance map (same testPixel idea as
+  summits — the map already knows what is visible at that pixel); rank by
+  angular proximity × feature size.
+- Desktop app queries the SQLite directly, no server. A tiny server
+  (Python FastAPI or Rust axum — a chance to keep the Rust muscle warm)
+  wraps the same lookup for web/PWA clients where the DB doesn't fit
+  client-side. Same endpoint later answers PWA "tap on screen → what is
+  it" queries.
+
 ## Printable panorama scroll
 
 Print-quality output for a physical viewpoint panorama — the classic
