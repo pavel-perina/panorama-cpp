@@ -9,7 +9,8 @@ summit-annotation analysis.
 ## Build & run
 
 Dependencies: CMake ≥ 3.20, GCC ≥ 14 (uses `std::println`), OpenCV 4
-(core/imgproc/imgcodecs), OpenMP.
+(core/imgproc/imgcodecs). Parallelism is std::thread only
+(`src/parallel.hpp`), no OpenMP.
 
 ```sh
 cmake -B build -S .

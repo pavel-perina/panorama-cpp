@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <print>
 
+#include "parallel.hpp"
+
 namespace pano {
 
 namespace {
@@ -70,8 +72,7 @@ std::vector<uint16_t> makeDistMap(const View &view, const HeightMap &heightMap)
     // transform for A/B verification (CMake option, ~3x slower).
     constexpr double kCheckpointM = 5000.0;
 
-    #pragma omp parallel for schedule(dynamic, 16)
-    for (int x = 0; x < width; ++x) {
+    const auto renderColumn = [&](int x) {
         uint16_t *column = &colMajor[size_t(x) * height];
         const double azimuth = view.azimuthMinR + x * view.angularStepR;
         const Vec3 direction = view.vNorth * std::cos(azimuth) + view.vEast * std::sin(azimuth);
@@ -131,7 +132,11 @@ std::vector<uint16_t> makeDistMap(const View &view, const HeightMap &heightMap)
             gy0 = gy1;
         }
 #endif
-    }
+    };
+    parallelFor(0, width, 16, [&](int b, int e) {
+        for (int x = b; x < e; ++x)
+            renderColumn(x);
+    });
 
     std::vector<uint16_t> output(view.arraySize());
     transpose(colMajor, output, width, height);
@@ -145,14 +150,15 @@ std::vector<uint8_t> extractOutlines(const View &view, const std::vector<uint16_
     std::vector<uint8_t> result(view.arraySize(), 0);
     std::fill_n(result.begin(), width, uint8_t(255));
 
-    #pragma omp parallel for
-    for (int row = 1; row < height; ++row) {
-        for (int col = 0; col < width; ++col) {
-            const int diff = std::abs(int(distMap[size_t(width) * (row - 1) + col]) -
-                                      int(distMap[size_t(width) * row + col]));
-            result[size_t(width) * row + col] = uint8_t(255 - std::min(diff, 255));
+    parallelFor(1, height, [&](int rowBegin, int rowEnd) {
+        for (int row = rowBegin; row < rowEnd; ++row) {
+            for (int col = 0; col < width; ++col) {
+                const int diff = std::abs(int(distMap[size_t(width) * (row - 1) + col]) -
+                                          int(distMap[size_t(width) * row + col]));
+                result[size_t(width) * row + col] = uint8_t(255 - std::min(diff, 255));
+            }
         }
-    }
+    });
     return result;
 }
 

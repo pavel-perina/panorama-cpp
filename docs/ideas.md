@@ -219,8 +219,8 @@ one actually squints at through binoculars.
 
 ## Portability / infrastructure cleanup (pre-desktop-app)
 
-- **Drop OpenMP → own `parallelFor(begin, end, f, grain)`** (compiler-
-  specific pragmas, MSVC stuck at OpenMP 2.x, sharing errors too easy).
+- **Done — dropped OpenMP for own `parallelFor` (src/parallel.hpp)**
+  (compiler-specific pragmas, MSVC stuck at OpenMP 2.x, sharing errors).
   All four uses (distmap columns, outlines rows, tile loading, isolation)
   are index-range loops without reductions. Implementation: worker threads
   pulling chunks off one `atomic<int>` via `fetch_add(grain)` — that is

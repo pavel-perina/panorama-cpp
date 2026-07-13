@@ -23,6 +23,7 @@
 
 #include "geo.hpp"
 #include "heightmap.hpp"
+#include "parallel.hpp"
 
 namespace {
 
@@ -139,9 +140,7 @@ int main(int argc, char **argv)
     // Chebyshev rings, capped (25.0 in the output = "at least 25 km").
     constexpr double kCellM = 92.66; // 3 arcsec N-S
     constexpr double kIsolationCapM = 25000.0;
-    #pragma omp parallel for schedule(dynamic, 64)
-    for (ptrdiff_t i = 0; i < ptrdiff_t(peaks.size()); ++i) {
-        PeakRec &pk = peaks[i];
+    const auto computeIsolation = [&](PeakRec &pk) {
         const int row = pk.cell / width, col = pk.cell % width;
         const uint16_t ele = h[pk.cell];
         const double lat = double(range.maxLat + 1) - double(row) / pano::HeightMap::kPixelsPerDeg;
@@ -165,7 +164,11 @@ int main(int argc, char **argv)
             }
         }
         pk.isolationKm = float(best / 1000.0);
-    }
+    };
+    pano::parallelFor(0, int(peaks.size()), 64, [&](int b, int e) {
+        for (int i = b; i < e; ++i)
+            computeIsolation(peaks[size_t(i)]);
+    });
     const auto t2 = std::chrono::steady_clock::now();
     std::println("Isolation pass: {:.1f} s", std::chrono::duration<double>(t2 - t1).count());
 

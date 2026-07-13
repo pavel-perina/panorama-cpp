@@ -31,7 +31,7 @@ if(EMSCRIPTEN)
     target_include_directories(pano_wasm PRIVATE src)
     target_include_directories(pano_wasm SYSTEM PRIVATE src/3rd_party/zstd)
     target_compile_options(pano_wasm PRIVATE
-        -O3 -msimd128 -Wall -Wextra -Wno-unknown-pragmas)
+        -O3 -msimd128 -Wall -Wextra)
     target_link_options(pano_wasm PRIVATE
         -O3
         -sMODULARIZE=1
@@ -43,7 +43,7 @@ if(EMSCRIPTEN)
         -sEXPORTED_RUNTIME_METHODS=cwrap,HEAPU8,HEAPU16,UTF8ToString
     )
 else()
-    find_package(OpenMP REQUIRED)
+    find_package(Threads REQUIRED) # src/parallel.hpp
     find_package(OpenCV REQUIRED COMPONENTS core imgcodecs imgproc)
 
     add_executable(panorama
@@ -59,7 +59,7 @@ else()
     target_include_directories(panorama SYSTEM PRIVATE src/3rd_party/zstd)
 
     target_link_libraries(panorama PRIVATE
-        OpenMP::OpenMP_CXX
+        Threads::Threads
         opencv_core
         opencv_imgcodecs
         opencv_imgproc
@@ -82,7 +82,7 @@ else()
     )
     target_include_directories(prominence PRIVATE src)
     target_include_directories(prominence SYSTEM PRIVATE src/3rd_party/zstd)
-    target_link_libraries(prominence PRIVATE OpenMP::OpenMP_CXX)
+    target_link_libraries(prominence PRIVATE Threads::Threads)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(prominence PRIVATE -O3 -march=native -Wall -Wextra)
     endif()

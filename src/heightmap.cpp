@@ -11,6 +11,7 @@
 #include <zstd.h>
 
 #include "geo.hpp"
+#include "parallel.hpp"
 
 namespace pano {
 
@@ -47,8 +48,7 @@ HeightMap HeightMap::load(const LatLonRange &range, const std::filesystem::path 
                  range.tilesHoriz(), range.tilesVert(), range.tilesTotal(),
                  hm.m_width, hm.m_height, hm.m_data.size() * 2 / 1000000);
 
-    #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < range.tilesTotal(); ++i) {
+    const auto loadTile = [&](int i) {
         const int lat = range.minLat + i / range.tilesHoriz();
         const int lon = range.minLon + i % range.tilesHoriz();
         constexpr size_t kCount = size_t(kTileSize) * kTileSize;
@@ -83,7 +83,13 @@ HeightMap HeightMap::load(const LatLonRange &range, const std::filesystem::path 
                                      "[.zst] (run scripts/download_hgt.py)");
         }
         hm.addTileRaw(lat, lon, raw.data());
-    }
+    };
+    // grain 1: a chunk is one tile (file I/O + decompress). A missing tile's
+    // exception propagates out of parallelFor (OpenMP terminated instead).
+    parallelFor(0, range.tilesTotal(), 1, [&](int b, int e) {
+        for (int i = b; i < e; ++i)
+            loadTile(i);
+    });
     return hm;
 }
 
