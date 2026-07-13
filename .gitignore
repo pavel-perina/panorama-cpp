@@ -4,11 +4,10 @@ data/*.zip
 data/osm-peaks/
 data/hgt-zst/
 data/peaks-europe.tsv
-data/geofabrik-peaks/
+data/geofabrik-peaks/*.osm.pbf
 data/peaks-geofabrik.tsv
 *.png
 dist_native.bin
 data/hgt1-zst/
 data/prominence.tsv
-data/peaks-rated.tsv
 data/peaks-rejected.tsv
