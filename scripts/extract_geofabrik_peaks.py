@@ -23,6 +23,7 @@ wikidata/name:* tags; the TSV step reduces to named peaks with elevation.
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -46,8 +47,9 @@ def extract(pbf_path: Path) -> Path:
             "lon": node.location.lon,
             "tags": dict(node.tags),
         })
-    out_path = pbf_path.with_name(
-        pbf_path.name.replace("-latest.osm.pbf", "") + "-peaks.json.zst")
+    # czech-republic-latest.osm.pbf / dolnoslaskie-260712.osm.pbf -> region name
+    stem = re.sub(r"-(latest|\d{6,8})$", "", pbf_path.name.removesuffix(".osm.pbf"))
+    out_path = pbf_path.with_name(stem + "-peaks.json.zst")
     raw = json.dumps({"elements": elements}, ensure_ascii=False).encode()
     out_path.write_bytes(zstandard.ZstdCompressor(level=19).compress(raw))
     print(f"  {pbf_path.name}: {len(elements)} peaks "

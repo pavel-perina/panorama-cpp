@@ -27,7 +27,8 @@ const api = {
      "number", "number", "number", "number", "number"]),
   width: Module.cwrap("pano_width", "number", []),
   height: Module.cwrap("pano_height", "number", []),
-  summits: Module.cwrap("pano_summits", "string", ["string"]),
+  // heap pointer, not cwrap "string": the TSV can exceed the 1 MB WASM stack
+  summits: Module.cwrap("pano_summits", "string", ["number"]),
 };
 
 const r = SCENE.range;
@@ -60,14 +61,22 @@ const distPtr = api.render(
   SCENE.stepRad, SCENE.distMaxM, SCENE.refraction);
 const w = api.width(), h = api.height();
 console.log(`WASM render: ${w}x${h} in ${(performance.now() - t0).toFixed(0)} ms`);
-const dist = Module.HEAPU16.subarray(distPtr / 2, distPtr / 2 + w * h);
+// copy, not a view: later allocations may grow memory and detach views
+const dist = Module.HEAPU16.slice(distPtr / 2, distPtr / 2 + w * h);
 
 let max = 0, nonzero = 0;
 for (const v of dist) { if (v > max) max = v; if (v) ++nonzero; }
 console.log(`max=${max} nonzero=${(100 * nonzero / dist.length).toFixed(2)}%`);
 
-const tsv = readFileSync(new URL("../data/summits.tsv", import.meta.url), "utf8");
-const visible = JSON.parse(api.summits(tsv));
+// rated database when built, curated list otherwise — same order as app.js
+const ratedUrl = new URL("../data/peaks-rated.tsv", import.meta.url);
+const tsvBuf = readFileSync(existsSync(ratedUrl) ? ratedUrl
+                                                 : new URL("../data/summits.tsv", import.meta.url));
+const tsvPtr = Module._malloc(tsvBuf.length + 1);
+Module.HEAPU8.set(tsvBuf, tsvPtr);
+Module.HEAPU8[tsvPtr + tsvBuf.length] = 0;
+const visible = JSON.parse(api.summits(tsvPtr));
+Module._free(tsvPtr);
 console.log(`visible summits: ${visible.length}, nearest: ` +
   visible.slice().sort((a, b) => a.distanceM - b.distanceM)[0]?.name);
 

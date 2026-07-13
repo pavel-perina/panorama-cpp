@@ -123,7 +123,12 @@ async function render() {
   // copy out of the WASM heap: memory growth may detach the view later
   distData = wasm.HEAPU16.slice(distPtr / 2, distPtr / 2 + distW * distH);
   const renderMs = performance.now() - t0;
-  visibleSummits = JSON.parse(api.summits(tsvCache));
+  const tsvBytes = new TextEncoder().encode(tsvCache);
+  const tsvPtr = wasm._malloc(tsvBytes.length + 1);
+  wasm.HEAPU8.set(tsvBytes, tsvPtr);
+  wasm.HEAPU8[tsvPtr + tsvBytes.length] = 0;
+  visibleSummits = JSON.parse(api.summits(tsvPtr));
+  wasm._free(tsvPtr);
   renderStrip(Number(document.getElementById("vis").value));
   status(`${distW}×${distH} px, render ${renderMs.toFixed(0)} ms, ` +
          `${visibleSummits.length} summits visible — drag to pan, wheel/pinch to zoom`);
@@ -143,7 +148,9 @@ async function main() {
     height: wasm.cwrap("pano_height", "number", []),
     tonemap: wasm.cwrap("pano_tonemap", "number",
       ["number", "number", "number", "number", "number", "number", "number"]),
-    summits: wasm.cwrap("pano_summits", "string", ["string"]),
+    // takes a heap pointer: cwrap "string" args go via the 1 MB WASM stack,
+    // too small for peaks-rated.tsv (~1.1 MB)
+    summits: wasm.cwrap("pano_summits", "string", ["number"]),
   };
 
   // Fetch tiles straight into the WASM heap.
@@ -177,7 +184,10 @@ async function main() {
     wasm._free(ptr);
   }
 
-  tsvCache = await (await fetch(`${DATA_URL}/summits.tsv`)).text();
+  // Rated peak database when built (scripts/build_peaks_db.py), curated list otherwise.
+  let tsvResp = await fetch(`${DATA_URL}/peaks-rated.tsv`);
+  if (!tsvResp.ok) tsvResp = await fetch(`${DATA_URL}/summits.tsv`);
+  tsvCache = await tsvResp.text();
 
   // Controls: visibility re-tonemaps instantly, refraction re-raycasts.
   const vis = document.getElementById("vis");

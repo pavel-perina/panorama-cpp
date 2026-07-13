@@ -37,7 +37,9 @@ PROMINENCE_TSV = DATA_DIR / "prominence.tsv"
 ACCEPTED_TSV = DATA_DIR / "peaks-rated.tsv"
 REJECTED_TSV = DATA_DIR / "peaks-rejected.tsv"
 
-MATCH_RADIUS_M = 300.0
+MATCH_RADIUS_M = 300.0      # unconditional match
+MATCH_RADIUS_EXT_M = 600.0  # broad dome summits: the SRTM maximum can sit
+MATCH_EXT_ELE_TOL = 40.0    # far from the cairn; require consistent elevation
 MIN_PROM_M = 20          # acceptance floor; the sweep itself starts at 10
 ELE_TOLERANCE = (-30.0, 150.0)  # plausible osm_ele - srtm_ele range
 HASH_CELL_DEG = 0.003    # grid-hash cell, ~333 m; 3x3 lookup covers the radius
@@ -76,16 +78,22 @@ def load_prominence() -> tuple[list[tuple], dict, tuple]:
     return rows, grid, bounds
 
 
-def nearest_srtm_peak(rows, grid, lat: float, lon: float) -> tuple[int, float] | None:
-    """Index of the nearest sweep peak within MATCH_RADIUS_M, or None."""
+def nearest_srtm_peak(rows, grid, lat: float, lon: float,
+                      osm_ele: float | None) -> tuple[int, float] | None:
+    """Index of the nearest sweep peak: unconditionally within MATCH_RADIUS_M,
+    or within MATCH_RADIUS_EXT_M when the elevation agrees (broad domes)."""
     key_lat, key_lon = int(lat / HASH_CELL_DEG), int(lon / HASH_CELL_DEG)
-    best, best_d = None, MATCH_RADIUS_M
-    for dy in (-1, 0, 1):
-        for dx in (-1, 0, 1):
+    best, best_d = None, MATCH_RADIUS_EXT_M
+    for dy in range(-2, 3):      # +-2 cells lat ~ 666 m
+        for dx in range(-3, 4):  # +-3 cells lon ~ 660 m at 49 deg N
             for i in grid.get((key_lat + dy, key_lon + dx), ()):
                 d = dist_m(lat, lon, rows[i][0], rows[i][1])
-                if d < best_d:
-                    best, best_d = i, d
+                if d >= best_d:
+                    continue
+                if d > MATCH_RADIUS_M and (osm_ele is None or
+                                           abs(osm_ele - rows[i][2]) > MATCH_EXT_ELE_TOL):
+                    continue
+                best, best_d = i, d
     return (best, best_d) if best is not None else None
 
 
@@ -129,14 +137,14 @@ def main() -> None:
         if not (bounds[0] <= lat <= bounds[2] and bounds[1] <= lon <= bounds[3]):
             rejected.append((name, lat, lon, "outside heightmap region"))
             continue
-        match = nearest_srtm_peak(rows, grid, lat, lon)
+        osm_ele = parse_ele(element["tags"])
+        match = nearest_srtm_peak(rows, grid, lat, lon, osm_ele)
         if match is None:
             rejected.append((name, lat, lon,
                              f"no SRTM peak with prom>=10m within {MATCH_RADIUS_M:.0f}m"))
             continue
         i, _ = match
         srtm_ele = rows[i][2]
-        osm_ele = parse_ele(element["tags"])
         if osm_ele is None:
             ele, ele_src = float(srtm_ele), "srtm"
         elif ELE_TOLERANCE[0] <= osm_ele - srtm_ele <= ELE_TOLERANCE[1]:

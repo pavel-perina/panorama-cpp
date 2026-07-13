@@ -68,6 +68,8 @@ std::vector<Summit> parseSummitsTsv(std::string_view tsv)
         s.lle.ele = std::stod(std::string(fields[1]));
         s.lle.lat = std::stod(std::string(fields[2]));
         s.lle.lon = std::stod(std::string(fields[3]));
+        if (fields.size() >= 6) // peaks-rated.tsv: EleSrc, Prominence, ...
+            s.prominence = std::stod(std::string(fields[5]));
         summits.push_back(std::move(s));
     }
     std::println("Parsed {} summits", summits.size());
@@ -85,11 +87,27 @@ std::vector<Summit> loadSummitsTsv(const std::filesystem::path &path)
 }
 
 std::vector<VisibleSummit> findVisibleSummits(const View &view,
+                                              const HeightMap &heightMap,
                                               const std::vector<uint16_t> &distMap,
                                               const std::vector<Summit> &summits)
 {
     const Vec3 refPoint = view.earth.lleToXyz(view.eye);
     const double fakeEarthRadius = refPoint.norm() * view.refractionCoef;
+
+    // True when in some column near x the pixel right above the summit's
+    // silhouette run is sky (0) rather than farther terrain.
+    const auto onSkyline = [&](int x, int y, uint16_t value, uint16_t tolerance) {
+        for (int col = std::max(x - 4, 0); col <= std::min(x + 4, view.outWidth - 1); ++col) {
+            for (int row = std::max(y - 12, 1); row <= std::min(y + 4, view.outHeight - 1); ++row) {
+                if (std::abs(int(distMap[size_t(row) * view.outWidth + col]) - int(value)) > int(tolerance))
+                    continue; // not this summit's silhouette yet
+                if (distMap[size_t(row - 1) * view.outWidth + col] == 0)
+                    return true;
+                break; // topmost run pixel has terrain above: not skyline here
+            }
+        }
+        return false;
+    };
 
     std::vector<VisibleSummit> visible;
     for (const Summit &summit : summits) {
@@ -101,12 +119,27 @@ std::vector<VisibleSummit> findVisibleSummits(const View &view,
             azimuthR -= 2.0 * kPi; // handle windows spanning north (negative azimuthMin)
         if (azimuthR < view.azimuthMinR)
             continue;
-        // Apparent height above the observer, curvature + refraction included.
-        const double h = summit.lle.ele + elevationDropAtDistance(distanceM, fakeEarthRadius) - view.eye.ele;
+        // Apparent height above the observer, curvature + refraction
+        // included. Placement uses the heightmap elevation the raycast saw,
+        // not OSM's (see header comment).
+        const double h = heightMap.at(summit.lle.lat, summit.lle.lon) +
+                         elevationDropAtDistance(distanceM, fakeEarthRadius) - view.eye.ele;
         const double elevationR = std::atan2(h, distanceM);
         const int x = int(std::lround((azimuthR - view.azimuthMinR) / view.angularStepR));
         const int y = int(std::lround((view.elevationMaxR - elevationR) / view.angularStepR));
-        if (!testPixel(view, distMap, x, y, 4, uint16_t(distanceM / view.distStepM), 5))
+        const uint16_t distSteps = uint16_t(distanceM / view.distStepM);
+        if (!testPixel(view, distMap, x, y, 4, distSteps, 5))
+            continue;
+        // Distance-scaled prominence gate: foreground bumps need 30 m, the
+        // horizon at 100/250 km needs 90/180 m (computed prominences run a
+        // bit below published ones). Summits with sky right above their
+        // silhouette get half the requirement: ridge shoulders have low
+        // prominence but dominate the horizon. Interim rule until
+        // score-based label selection (docs/ideas.md "Peak rating" stage 2).
+        double minProm = 30.0 + distanceM * 0.6e-3;
+        if (onSkyline(x, y, distSteps, 5))
+            minProm *= 0.5;
+        if (summit.prominence < minProm)
             continue;
         std::println("{:>25} is visible at azimuth {:6.2f}°, distance {:6.2f} km",
                      summit.name, toDegrees(azimuthR) < 0.0 ? toDegrees(azimuthR) + 360.0 : toDegrees(azimuthR),

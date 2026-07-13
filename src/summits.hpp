@@ -13,6 +13,9 @@ namespace pano {
 struct Summit {
     std::string name;
     PositionLLE lle;
+    // From peaks-rated.tsv (scripts/build_peaks_db.py); curated summit lists
+    // without the column default to "always prominent enough".
+    double prominence = 1.0e9;
 };
 
 // Placement of a visible summit in the output image.
@@ -24,7 +27,9 @@ struct VisibleSummit {
 };
 
 // Parses TSV content with header: "Summit" Elevation Latitude Longitude
-// (the format produced by scripts/download_osm_summits.py and used by panorama-jl).
+// (the format produced by scripts/download_osm_summits.py and used by
+// panorama-jl). Extra columns are tolerated; column 6 ("Prominence" in
+// peaks-rated.tsv) is picked up when present.
 std::vector<Summit> parseSummitsTsv(std::string_view tsv);
 
 // Convenience file wrapper around parseSummitsTsv.
@@ -32,8 +37,12 @@ std::vector<Summit> loadSummitsTsv(const std::filesystem::path &path);
 
 // Filters summits by distance/azimuth window and checks them against the
 // distance map (a summit counts as visible when a distance-map sample within
-// `radius` px matches its distance within `tolerance` steps).
+// `radius` px matches its distance within `tolerance` steps). The heightmap
+// supplies the elevation for placement — the map was raycast from it, and at
+// close range a few meters of OSM-vs-SRTM disagreement move the apparent
+// position by more pixels than the test tolerates.
 std::vector<VisibleSummit> findVisibleSummits(const View &view,
+                                              const HeightMap &heightMap,
                                               const std::vector<uint16_t> &distMap,
                                               const std::vector<Summit> &summits);
 

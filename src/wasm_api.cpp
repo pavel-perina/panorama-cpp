@@ -146,9 +146,9 @@ EMSCRIPTEN_KEEPALIVE
 const char *pano_summits(const char *tsv)
 {
     g_summitsJson = "[";
-    if (g_view && !g_distMap.empty()) {
+    if (g_view && g_heightMap && !g_distMap.empty()) {
         const auto summits = pano::parseSummitsTsv(tsv);
-        const auto visible = pano::findVisibleSummits(*g_view, g_distMap, summits);
+        const auto visible = pano::findVisibleSummits(*g_view, *g_heightMap, g_distMap, summits);
         for (size_t i = 0; i < visible.size(); ++i) {
             if (i)
                 g_summitsJson += ',';

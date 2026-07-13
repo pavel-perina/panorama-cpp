@@ -71,8 +71,14 @@ int main(int argc, char **argv)
                                  const_cast<uint8_t *>(outlines.data()));
         cv::imwrite("outlines.png", outlineMat);
 
-        const auto summits = loadSummitsTsv(dataDir / "summits.tsv");
-        const auto visible = findVisibleSummits(view, distMap, summits);
+        // Rated peak database when built (scripts/build_peaks_db.py),
+        // curated summit list otherwise.
+        auto summitsPath = dataDir / "peaks-rated.tsv";
+        if (!std::filesystem::exists(summitsPath))
+            summitsPath = dataDir / "summits.tsv";
+        std::println("Summit database: {}", summitsPath.string());
+        const auto summits = loadSummitsTsv(summitsPath);
+        const auto visible = findVisibleSummits(view, heightMap, distMap, summits);
         std::println("Saving panorama.png");
         renderAnnotations(view, outlines, visible, "panorama.png");
     } catch (const std::exception &e) {
