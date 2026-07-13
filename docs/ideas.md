@@ -254,20 +254,47 @@ one actually squints at through binoculars.
 
 Print-quality output for a physical viewpoint panorama — the classic
 orientation-table / summit-book format, generated instead of hand-drawn.
-The native renderer already produces full-res annotated PNGs; missing is a
-print layout pass:
+panorama.png is already almost printer-friendly (line art on white);
+what's missing, roughly in dependency order:
 
-- 360° at 20 px/deg (udeuschle-style) ≈ 7200 px wide → ~60 cm at 300 dpi,
-  or fold-out leporello strips for higher resolution; title block with
-  viewpoint name/coords/elevation, azimuth scale along the full edge.
-- Labels styled for print (black on white outlines, no fog background —
-  the existing outlines.png mode is exactly right for this).
-- QR code linking to the web app with the viewpoint pre-selected
-  (URL params: lat/lon/ele — needs the location-picker milestone anyway);
-  `qrencode` CLI or python qrcode lib in a script. panorama-jl already has
-  a project QR (project-qr.png) — tradition continues.
-- Output PDF (cairo would do this natively — another argument for the
-  planned cairo text backend) or just a print-ready PNG strip.
+**Distance cue in ink, not fog.** Engraved panoramas encode depth as line
+weight/density: near silhouettes heavy, far ridges hairline-light. We get
+this nearly free — outline strength × exp(−d/D) with D ≈ 150–200 km is
+Koschmieder again with paper white as the "sky color"; the shared-tonemap
+refactor covers screen (ink→sky blue) and print (ink→paper) with one
+formula. A print palette: labels near-black (solarized blue dithers to mud
+on a B&W laser), stems ~50 % gray, label text already carries "(83 km)" as
+the honest distance cue. Deliberately do NOT fade label ink with distance —
+labels are the payload, terrain lines alone carry the depth. Depth cue may
+be optional anyway: the scroll lies in front of the real view, reality
+supplies the depth.
+
+**Print resolution is a different renderer regime.**
+
+- Source data: 90 m SRTM3 silhouettes look fine at screen scale but
+  stair-step in print; wants 1-arcsecond tiles (some already mirrored in
+  data/hgt1-zst/) + bilinear heightmap sampling. Needs HeightMap to take
+  tile size at runtime (1201 vs 3601) and ~9× memory (a 28-tile view
+  ≈ 1.5 GB — fine natively). Bilinear + 1″ changes silhouettes, so this is
+  a print/quality mode, not a default (bit-parity discipline stays on the
+  3″ nearest path).
+- Laser printers cannot print pixels 1:1: the RIP downscales/halftones
+  (a "1200 dpi" PDF typically lands on a 600 dpi engine), grayscale
+  becomes halftone rosettes, and strokes under ~2 device px (~85 µm at
+  600 dpi) drop out. So render 1-bit black&white at device resolution
+  (600 dpi), doing our own thresholding: distance fade becomes stroke
+  *weight* (near ~4 px, far 2 px minimum) or ordered dither under our
+  control instead of the printer's.
+- Paging: A4 landscape ≈ 277 mm printable → at ~8 mm/deg that's ~33°/page,
+  11-page leporello for 360°; each page needs a few degrees of overlap,
+  cut marks, and its own azimuth scale so misordered pages are obvious.
+  Title block (viewpoint name/coords/elevation, date, refraction/visibility
+  used) + QR code linking the web app with the viewpoint preselected
+  (URL params: lat/lon/ele — needs the location-picker milestone);
+  `qrencode` or python qrcode lib.
+- Assembly: PDF from the 1-bit PNGs — `img2pdf` embeds PNG losslessly
+  (no recompression, no resampling); a 600 dpi 1-bit A4 page is ~4 MB raw
+  and compresses to a few hundred KB. No Cairo needed anywhere.
 
 Use case: viewpoints that have a book/board already — leave a better one.
 
