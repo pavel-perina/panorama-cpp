@@ -46,8 +46,9 @@ The node test needs `dist_native.bin`: run `./build/panorama`, then
   verbatim (colors.cpp comes from Pavel's slime_mold repo — don't edit here,
   fix upstream and re-copy).
 - WASM API surface is `src/wasm_api.cpp` only; JS owns fetching, storage,
-  canvas, text (UTF-8 labels work in Canvas2D; OpenCV Hershey is ASCII-only,
-  desktop labels have broken diacritics — known, Cairo planned).
+  canvas, text (web labels via Canvas2D; desktop labels via the SDF font
+  atlas `data/fonts/font-sdf.bin` + `src/sdftext.cpp` — rebake with
+  `scripts/bake_font_sdf.py`).
 - Pavel verifies rendered output visually before committing renderer/web
   changes — implement, ask him to refresh/run, commit on his word.
 - Commit messages: plain descriptive style, no conventional-commit prefixes

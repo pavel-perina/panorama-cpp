@@ -285,7 +285,7 @@ Use case: viewpoints that have a book/board already — leave a better one.
   summer ~1.10–1.14).
 - Bilinear heightmap sampling.
 - Scene parameters from config file / CLI instead of #if 0 blocks in main.
-- UTF-8 labels: Cairo or OpenCV freetype module (Hershey fonts are
-  ASCII-only); on web, Canvas2D fillText solves it.
+- ~~UTF-8 labels~~ done: SDF font atlas (scripts/bake_font_sdf.py +
+  src/sdftext.cpp); on web, Canvas2D fillText.
 - Report "obscured by ridge X" for rejected summits instead of silently
   dropping (data is already in the distance map).
