@@ -44,7 +44,7 @@ if(EMSCRIPTEN)
     )
 else()
     find_package(Threads REQUIRED) # src/parallel.hpp
-    find_package(OpenCV REQUIRED COMPONENTS core imgcodecs imgproc)
+    find_package(ZLIB REQUIRED)    # src/pngwrite.cpp
 
     add_executable(panorama
         src/main.cpp
@@ -53,6 +53,7 @@ else()
         src/summits.cpp
         src/annotate.cpp
         src/sdftext.cpp
+        src/pngwrite.cpp
         src/common/colors.cpp
         src/3rd_party/zstd/zstddeclib.c
     )
@@ -61,11 +62,8 @@ else()
 
     target_link_libraries(panorama PRIVATE
         Threads::Threads
-        opencv_core
-        opencv_imgcodecs
-        opencv_imgproc
+        ZLIB::ZLIB
     )
-    target_include_directories(panorama SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         # -ffp-contract=off: no FMA fusion, keeps the distance map

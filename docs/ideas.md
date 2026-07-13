@@ -230,17 +230,13 @@ one actually squints at through binoculars.
   Output stays scheduling-independent (each index owns its slice) → bit
   parity unaffected. Avoid std::async (per-task overhead, no balancing);
   TBB is too big a dependency for one primitive.
-- **Drop OpenCV** — audit says it only provides: 3× imwrite, AA 1 px
-  lines, Hershey text (rotated via warpAffine), gray→BGR. PNG writing:
-  system libpng16 (`find_package(PNG)`; libpng16-devel 1.6.44 installed,
-  does 16-bit gray natively). WASM links no system libs by construction
-  and needs no PNG anyway — JS canvas owns output, and a future
-  "download PNG" button is `canvas.toBlob()`; should C-side encoding in
-  wasm ever be needed (16-bit export?), Emscripten's `-sUSE_LIBPNG=1`
-  port statically links libpng+zlib (~200 KB). lodepng stays the
-  single-file fallback if a Windows port minds the dependency. Plus own
-  AA line drawing on raw buffers and own text (below). Removes the
-  heaviest dependency before any MSVC/SDL3 port.
+- **Done — dropped OpenCV.** PNG via own writer on bare zlib
+  (src/pngwrite.cpp: chunks + CRC32 + Up-filtered scanlines; gray8/16,
+  rgb24/48 share one code path), lines are axis-aligned pixel runs,
+  text via the SDF atlas. Native binary links only zlib + libstdc++.
+  WASM never needed any of it — JS canvas owns output ("download PNG"
+  = `canvas.toBlob()`; C-side 16-bit export in wasm would be
+  Emscripten's `-sUSE_LIBPNG=1` port).
 - **Text: baked SDF/MSDF atlas, no HarfBuzz.** HarfBuzz is a shaping
   engine (Arabic joining, Indic reordering); CZ/SK/DE/PL/HU/RO + Greek +
   Cyrillic are precomposed NFC codepoints with plain advances — simple

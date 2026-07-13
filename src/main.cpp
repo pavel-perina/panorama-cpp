@@ -6,12 +6,10 @@
 #include <filesystem>
 #include <print>
 
-#include <opencv2/core.hpp>
-#include <opencv2/imgcodecs.hpp>
-
 #include "distmap.hpp"
 #include "geo.hpp"
 #include "heightmap.hpp"
+#include "pngwrite.hpp"
 #include "sdftext.hpp"
 #include "summits.hpp"
 #include "view.hpp"
@@ -61,16 +59,12 @@ int main(int argc, char **argv)
         std::println("Distance map took {:.3f} seconds", secondsSince(t0));
 
         std::println("Saving dist_map.png");
-        const cv::Mat distMat(view.outHeight, view.outWidth, CV_16UC1,
-                              const_cast<uint16_t *>(distMap.data()));
-        cv::imwrite("dist_map.png", distMat);
+        writePng("dist_map.png", view.outWidth, view.outHeight, 1, 16, distMap.data());
 
         std::println("Extracting outlines");
         const std::vector<uint8_t> outlines = extractOutlines(view, distMap);
         std::println("Saving outlines.png");
-        const cv::Mat outlineMat(view.outHeight, view.outWidth, CV_8UC1,
-                                 const_cast<uint8_t *>(outlines.data()));
-        cv::imwrite("outlines.png", outlineMat);
+        writePng("outlines.png", view.outWidth, view.outHeight, 1, 8, outlines.data());
 
         // Rated peak database when built (scripts/build_peaks_db.py),
         // curated summit list otherwise.

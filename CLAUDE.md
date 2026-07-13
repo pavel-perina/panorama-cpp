@@ -2,8 +2,8 @@
 
 C++23 terrain panorama renderer (port of pavel-perina/panorama-jl): raycast
 distance map from SRTM heightmaps + summit annotations. Two targets from one
-core: native CLI (OpenCV for image output) and Emscripten/WASM web app
-(browser does all I/O and drawing). See README.md for data scripts,
+core: native CLI (own zlib PNG writer + SDF text, no OpenCV) and
+Emscripten/WASM web app (browser does all I/O and drawing). See README.md for data scripts,
 docs/mobile-app-plan.md and docs/ideas.md for direction.
 
 ## Build & verify
