@@ -217,6 +217,37 @@ one actually squints at through binoculars.
   client-side. Same endpoint later answers PWA "tap on screen → what is
   it" queries.
 
+## Portability / infrastructure cleanup (pre-desktop-app)
+
+- **Drop OpenMP → own `parallelFor(begin, end, f, grain)`** (compiler-
+  specific pragmas, MSVC stuck at OpenMP 2.x, sharing errors too easy).
+  All four uses (distmap columns, outlines rows, tile loading, isolation)
+  are index-range loops without reductions. Implementation: worker threads
+  pulling chunks off one `atomic<int>` via `fetch_add(grain)` — that is
+  `schedule(dynamic)` in ~30 portable lines; dynamic balancing matters
+  (ray columns vary in cost, early sky exit). Serial fallback on
+  Emscripten / single core; capture first exception, rethrow after join.
+  Output stays scheduling-independent (each index owns its slice) → bit
+  parity unaffected. Avoid std::async (per-task overhead, no balancing);
+  TBB is too big a dependency for one primitive.
+- **Drop OpenCV** — audit says it only provides: 3× imwrite, AA 1 px
+  lines, Hershey text (rotated via warpAffine), gray→BGR. Replace with
+  lodepng (single file; does the 16-bit gray PNG that stb/fpng cannot),
+  own AA line drawing on raw buffers, and own text (below). Removes the
+  heaviest dependency before any MSVC/SDL3 port.
+- **Text: baked SDF/MSDF atlas, no HarfBuzz.** HarfBuzz is a shaping
+  engine (Arabic joining, Indic reordering); CZ/SK/DE/PL/HU/RO + Greek +
+  Cyrillic are precomposed NFC codepoints with plain advances — simple
+  layout is fully correct. Bake atlas offline (msdfgen, DejaVu Sans),
+  commit atlas PNG + metrics; runtime = bilinear sample + threshold,
+  45° labels stay crisp (bitmap fonts would not). Bake the glyph set
+  from the peaks TSVs — exactly the alphabet the database uses.
+  Fallback: stb_truetype runtime bake with 3× oversampling.
+- **Share the tonemap.** Koschmieder/OkLab fog lives only in wasm_api;
+  move to core (tonemap.cpp) so native panorama.png matches the web look
+  ("web version is more true"). outlines.png stays as the print-friendly
+  mode; also step one of the printable scroll.
+
 ## Printable panorama scroll
 
 Print-quality output for a physical viewpoint panorama — the classic
