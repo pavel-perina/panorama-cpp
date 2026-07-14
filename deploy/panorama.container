@@ -1,0 +1,24 @@
+[Unit]
+Description=nginx (panorama web app + heightmap data)
+
+[Container]
+Image=docker.io/nginx:1-alpine-slim
+ContainerName=nginx-panorama
+PublishPort=8081:80
+# Named volumes, populated by deploy/deploy.sh (writable, survive image updates).
+# panorama-data mounts *inside* panorama-app's tree so the app's relative
+# URLs (../data/...) work unchanged; podman orders nested mounts by path.
+Volume=panorama-conf:/etc/nginx/conf.d:ro
+Volume=panorama-app:/srv/panorama
+Volume=panorama-data:/srv/panorama/data
+Network=shared_network
+AutoUpdate=registry
+# Proves both volumes are actually mounted, not just that nginx answers.
+HealthCmd=wget -q --spider http://127.0.0.1/index.html && wget -q --spider http://127.0.0.1/data/peaks-rated.tsv
+HealthInterval=5m
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
