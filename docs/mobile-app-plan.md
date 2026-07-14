@@ -116,6 +116,16 @@ pyramid, since beyond ~50 km the silhouette doesn't benefit from 90 m posts.
 
 ## Milestones (each independently satisfying)
 
+Status 2026-07-14: 0–1 done earlier; 3 essentially done (commit 0fd2e59 —
+URL scene state, geolocation, compass follow with adaptive smoothing, safe
+eye height from the heightmap; **declination correction still missing**,
+so labels sit ~5° off magnetic-compass reality in Central Europe).
+Milestone 2 is being satisfied without Leaflet: URL params + GPS today, a
+nearby-hills landing page (list from peaks-rated.tsv) planned instead of a
+map. 4 (offline) and 5 (PWA manifest/fullscreen-on-iOS) open. Next
+renderer-side step: 30° sector cache + speculative prefetch + visibility-
+capped distMax (see ideas.md "Sector cache").
+
 0. **Sensor page, no WASM, no build system** (~100 lines JS): show live
    GPS lat/lon/accuracy + compass heading + pitch as text. Walk around.
    De-risks permissions, iOS quirks, sensor noise in isolation.

@@ -28,6 +28,30 @@ Tiles are read from `hgt3-zst/N49E015.hgt.zst` (the 3-arcsec mirror layout;
 `N49E015.hgt` in the data dir as fallbacks (vendored zstd decoder,
 `src/3rd_party/zstd/`).
 
+## Web app (WASM)
+
+```sh
+source ~/emsdk/emsdk_env.sh
+emcmake cmake -B build-wasm -S . && cmake --build build-wasm -j
+python3 -m http.server 8000      # from repo root, open http://localhost:8000/web/
+```
+
+Scene state lives in URL params, all optional:
+`?lat=&lon=` viewpoint (default Kamenice), `dh=` eye height above terrain
+(default +5 m; eye elevation = 3×3 heightmap max + dh, GPS altitude is
+ignored), `ele=` absolute eye elevation override, `az=` sector center
+(60° window), `dist=` max render distance in km (default 250; also sets
+the tile fetch radius). Toolbar: 📍 geolocate, 🧭 compass follow (adaptive
+heading smoothing; scrolls within the rendered sector, re-renders on
+leaving it), N…NW direction buttons, ⛶ fullscreen. Sensors require HTTPS —
+use the deployed host, not `http://` LAN addresses.
+
+Self-hosting: see `deploy/` (podman quadlet + nginx). After a wasm or
+web/ change, rerun `deploy/deploy.sh`. Beware the dev-server cache
+hazard: `python3 -m http.server` sends no cache headers, so a browser can
+pair a fresh `app.js` with a stale cached `pano.wasm` → "memory access
+out of bounds"; hard-reload (Ctrl+Shift+R) fixes it.
+
 Before the first run fetch heightmaps and a summit list (see below):
 
 ```sh

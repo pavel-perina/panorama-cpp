@@ -196,7 +196,35 @@ real-time pan at 1080p and still a fraction of the strip at 4K.
 Speculatively render a margin around the viewport (grayscale distance
 data is cheap) and re-render outward on idle.
 
-## "What is that" query service (beyond peaks)
+## Sector cache + speculative rendering (web/PWA)
+
+Today (0fd2e59) the web app renders one 60° sector and re-renders from
+scratch when the compass leaves it — a visible ~600 ms+ stall at every
+sector edge. Column independence makes the fix mechanical:
+
+- **Fixed 30° sectors aligned to the compass rose** (0–30, 30–60, …; 12 per
+  circle). Cache key = sector index + eye + distMax + refraction + step.
+  Each sector is its own offscreen canvas + kept dist-map copy — *not* one
+  360° strip canvas: 63k × 901 px ≈ 57 MP exceeds iOS Safari's canvas area
+  cap, and per-sector eviction is free. `draw()` composites the 2–3 sectors
+  intersecting the viewport.
+- **Speculative prefetch**: after the current sector lands, render its two
+  neighbors in the turn direction on idle (single render already blocks the
+  main thread ~600 ms — chunk it per-sector, or per half-sector if that
+  still stutters the compass scroll). A user panning steadily never sees a
+  render; a 360° sweep costs 12 background renders once, then is free.
+- **Labels per sector** via pano_summits on the sector's az window with a
+  small overlap margin; spacing suppression runs per composite view so
+  seam-adjacent labels don't collide.
+- **Distance cap from visibility (lossless speedup)**: meteorological
+  visibility V is *defined* as the 2 % contrast distance (Koschmieder), so
+  terrain beyond ~1.2 V is indistinguishable from sky in the tonemapped
+  output. Rendering with distMax = 1.2 × visibility-slider instead of a
+  fixed 250 km changes nothing visible while cutting both the ray marching
+  (sky pixels walk the full distMax — they dominate cost) and the tile
+  fetch radius: 100 km visibility → 120 km cap → ~12 tiles instead of 40,
+  and roughly half the render time. Raising the slider past the cap
+  invalidates the sector cache (rare, explicit user action).
 
 Query: from (49.1454, 15.6990), what is at azimuth 35.12° distance ~65 km?
 Answer should rank *any* identifiable feature near that ray: hill, village,
