@@ -54,11 +54,14 @@ HeightMap HeightMap::load(const LatLonRange &range, const std::filesystem::path 
         constexpr size_t kCount = size_t(kTileSize) * kTileSize;
 
         // zstd-compressed tile is the primary source, plain .hgt the
-        // fallback; the hgt-zst/ subdirectory is the mirror layout that the
-        // web app uses too (see scripts/mirror_hgt.py).
+        // fallback; hgt3-zst/ is the 3-arcsec mirror layout that the web app
+        // uses too (see scripts/mirror_hgt.py) — the "3" keeps the slot open
+        // for a 1-arcsec hgt1-zst/ sibling. hgt-zst/ is the legacy name.
         const std::string name = std::format("N{:02}E{:03}.hgt", lat, lon);
         const std::filesystem::path rawPath = tileDir / name;
-        std::filesystem::path zstPath = tileDir / "hgt-zst" / (name + ".zst");
+        std::filesystem::path zstPath = tileDir / "hgt3-zst" / (name + ".zst");
+        if (!std::filesystem::exists(zstPath))
+            zstPath = tileDir / "hgt-zst" / (name + ".zst");
         if (!std::filesystem::exists(zstPath))
             zstPath = tileDir / (name + ".zst");
         std::vector<int16_t> raw(kCount);

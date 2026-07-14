@@ -23,10 +23,10 @@ distance, refraction) are hardcoded in `src/main.cpp`. Outputs to the
 current directory: `dist_map.png` (16-bit distances), `outlines.png`,
 `panorama.png` (annotated).
 
-Tiles are read as plain `N49E015.hgt` with `N49E015.hgt.zst` as fallback
-(vendored zstd decoder, `src/3rd_party/zstd/`), so the renderer can point
-straight at the archive mirror: `./build/panorama data/hgt-zst` (it also
-expects `summits.tsv` in that directory).
+Tiles are read from `hgt3-zst/N49E015.hgt.zst` (the 3-arcsec mirror layout;
+`hgt-zst/` is accepted as the legacy name) with plain `N49E015.hgt.zst` /
+`N49E015.hgt` in the data dir as fallbacks (vendored zstd decoder,
+`src/3rd_party/zstd/`).
 
 Before the first run fetch heightmaps and a summit list (see below):
 
@@ -43,7 +43,7 @@ the script location, so they work from any CWD). Summary:
 | script | purpose | output |
 |---|---|---|
 | `download_hgt.py` | fetch the raw `.hgt` tiles **the renderer needs** for one scene | `data/N49E015.hgt`, … |
-| `mirror_hgt.py` | archival mirror of **all Europe** heightmaps, zstd-recompressed | `data/hgt-zst/N49E015.hgt.zst`, … |
+| `mirror_hgt.py` | archival mirror of **all Europe** heightmaps, zstd-recompressed | `data/hgt3-zst/N49E015.hgt.zst`, … |
 | `download_osm_summits.py` | quick bbox → summit TSV for the renderer (small areas) | `data/summits.tsv` |
 | `download_osm_peaks.py` | archival crawl of **all Europe** OSM peaks, raw JSON per 1×1° cell + offline merge step | `data/osm-peaks/*.json.zst`, `data/peaks-europe.tsv` |
 | `extract_geofabrik_peaks.py` | offline peak extraction from manually downloaded Geofabrik country PBFs | `data/geofabrik-peaks/*-peaks.json.zst`, `data/peaks-geofabrik.tsv` |

@@ -33,9 +33,10 @@ The node test needs `dist_native.bin`: run `./build/panorama`, then
 - Heightmap sampling **rounds** (deliberate break from Julia/Rust originals,
   which truncate — see commit f8b3bdf). Old reference images are offset by
   half a cell.
-- Tile sources in priority order: `<dir>/hgt-zst/N49E015.hgt.zst`,
-  `<dir>/N49E015.hgt.zst`, `<dir>/N49E015.hgt` (web app: hgt-zst first too).
-  Only N/E quadrant is supported.
+- Tile sources in priority order: `<dir>/hgt3-zst/N49E015.hgt.zst`,
+  `<dir>/hgt-zst/…` (legacy name), `<dir>/N49E015.hgt.zst`,
+  `<dir>/N49E015.hgt` (web app: same order). `hgt1-zst/` is reserved for
+  1-arcsec tiles (print mode). Only N/E quadrant is supported.
 
 ## Conventions
 
@@ -56,7 +57,8 @@ The node test needs `dist_native.bin`: run `./build/panorama`, then
 
 ## Data (gitignored, large)
 
-`data/hgt-zst/` — zstd Europe mirror (primary tile source);
+`data/hgt3-zst/` — zstd 3-arcsec Europe mirror (primary tile source;
+`data/hgt1-zst/` = 1-arcsec, not consumed yet);
 `data/osm-peaks/` — raw Overpass JSON per 1×1° cell; `data/summits.tsv` —
 curated CZ/SK list the renderer currently uses (committed);
 `data/peaks-europe.tsv` — merged OSM peaks, unconsumed until the rating

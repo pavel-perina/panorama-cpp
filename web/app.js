@@ -165,14 +165,21 @@ async function main() {
   let loaded = 0;
   for (const [lat, lon] of tiles) {
     const name = `N${String(lat).padStart(2, "0")}E${String(lon).padStart(3, "0")}.hgt`;
-    // zstd mirror is the primary source (3x smaller); raw .hgt as fallback
-    let resp = await fetch(`${DATA_URL}/hgt-zst/${name}.zst`);
+    // zstd mirror is the primary source (3x smaller); hgt-zst is the legacy
+    // mirror name, raw .hgt the last fallback
+    let src = `hgt3-zst/${name}.zst`;
+    let resp = await fetch(`${DATA_URL}/${src}`);
+    if (!resp.ok) {
+      src = `hgt-zst/${name}.zst`;
+      resp = await fetch(`${DATA_URL}/${src}`);
+    }
     let compressed = true;
     if (!resp.ok) {
+      src = name;
       resp = await fetch(`${DATA_URL}/${name}`);
       compressed = false;
     }
-    status(`Fetching tile ${++loaded}/${tiles.length}: ${compressed ? `hgt-zst/${name}.zst` : name}`);
+    status(`Fetching tile ${++loaded}/${tiles.length}: ${src}`);
     if (!resp.ok) { console.warn(`missing tile ${name}`); continue; }
     const buf = new Uint8Array(await resp.arrayBuffer());
     const ptr = wasm._malloc(buf.length);

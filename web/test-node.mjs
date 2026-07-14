@@ -38,7 +38,9 @@ for (let lat = r.minLat; lat <= r.maxLat; ++lat) {
   for (let lon = r.minLon; lon <= r.maxLon; ++lon) {
     const name = `N${String(lat).padStart(2, "0")}E${String(lon).padStart(3, "0")}.hgt`;
     // exercise the zstd path where the mirror has the tile
-    const zstUrl = new URL(`../data/hgt-zst/${name}.zst`, import.meta.url);
+    let zstUrl = new URL(`../data/hgt3-zst/${name}.zst`, import.meta.url);
+    if (!existsSync(zstUrl))
+      zstUrl = new URL(`../data/hgt-zst/${name}.zst`, import.meta.url); // legacy name
     const compressed = existsSync(zstUrl);
     const bytes = readFileSync(compressed ? zstUrl : new URL(`../data/${name}`, import.meta.url));
     const ptr = Module._malloc(bytes.length);

@@ -6,7 +6,7 @@
 """Mirror viewfinderpanoramas.org SRTM3 heightmaps for Europe as .hgt.zst.
 
 Downloads the 4x6 degree graticule zips (nearest to the Czech Republic
-first), recompresses every contained tile to data/hgt-zst/<TILE>.hgt.zst
+first), recompresses every contained tile to data/hgt3-zst/<TILE>.hgt.zst
 (zstd shrinks a 2.8 MB tile to roughly half) and drops the zip. Resumable:
 graticules whose tiles are already mirrored are skipped, so it can run in
 short sessions:
@@ -33,7 +33,7 @@ import zstandard
 
 BASE_URL = "https://viewfinderpanoramas.org/dem3"
 USER_AGENT = "panorama-cpp hgt mirror (one-off, contact: pavel.perina@gmail.com)"
-OUT_DIR = Path(__file__).resolve().parent.parent / "data" / "hgt-zst"
+OUT_DIR = Path(__file__).resolve().parent.parent / "data" / "hgt3-zst"
 
 # Europe: lat 35..72°N, lon 10°W..30°E
 LAT_RANGE = range(35, 72)

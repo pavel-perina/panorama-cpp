@@ -3,6 +3,7 @@ data/*.hgt
 data/*.zip
 data/osm-peaks/
 data/hgt-zst/
+data/hgt3-zst/
 data/peaks-europe.tsv
 data/geofabrik-peaks/*.osm.pbf
 data/peaks-geofabrik.tsv
