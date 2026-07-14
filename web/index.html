@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>panorama-cpp web</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden;
@@ -11,10 +11,14 @@
   #bar { padding: 6px 10px; }
   #view { display: block; touch-action: none; cursor: grab;
           image-rendering: pixelated; }
+  #dirs button { background: #073642; color: #93a1a1; border: 1px solid #586e75;
+                 border-radius: 3px; margin: 0 1px; padding: 2px 7px;
+                 font: inherit; cursor: pointer; }
 </style>
 </head>
 <body>
 <div id="bar">
+  <span id="dirs"></span>
   <span id="status">panorama-cpp — loading…</span>
   <label id="visctl" style="float:right; display:none">
     visibility <input id="vis" type="range" min="10" max="300" step="5" value="100"

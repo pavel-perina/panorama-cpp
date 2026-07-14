@@ -39,7 +39,7 @@ if(EMSCRIPTEN)
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
         -sSTACK_SIZE=1MB
-        -sEXPORTED_FUNCTIONS=_pano_reset,_pano_addTile,_pano_addTileZst,_pano_render,_pano_tonemap,_pano_width,_pano_height,_pano_summits,_malloc,_free
+        -sEXPORTED_FUNCTIONS=_pano_reset,_pano_addTile,_pano_addTileZst,_pano_render,_pano_tonemap,_pano_width,_pano_height,_pano_summits,_pano_eyeElevation,_malloc,_free
         -sEXPORTED_RUNTIME_METHODS=cwrap,HEAPU8,HEAPU16,UTF8ToString
     )
 else()

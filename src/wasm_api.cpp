@@ -64,6 +64,24 @@ void pano_addTile(int lat, int lon, const int16_t *data)
         g_heightMap->addTileRaw(lat, lon, data);
 }
 
+// Safe eye elevation for a viewpoint: max of the 3x3 heightmap cells around
+// the position. SRTM smooths sharp summits and sampling rounds to a cell, so
+// the literal sample can sit below an adjacent cell — an eye placed there
+// gets its whole panorama eaten by the neighboring 90 m of terrain.
+EMSCRIPTEN_KEEPALIVE
+double pano_eyeElevation(double lat, double lon)
+{
+    if (!g_heightMap)
+        return 0.0;
+    double x, y;
+    g_heightMap->gridCoords(lat, lon, x, y);
+    uint16_t best = 0;
+    for (int dy = -1; dy <= 1; ++dy)
+        for (int dx = -1; dx <= 1; ++dx)
+            best = std::max(best, g_heightMap->atGrid(x + dx, y + dy));
+    return double(best);
+}
+
 // data = zstd-compressed .hgt.zst bytes; returns 1 on success, 0 on error.
 EMSCRIPTEN_KEEPALIVE
 int pano_addTileZst(int lat, int lon, const uint8_t *data, int size)
