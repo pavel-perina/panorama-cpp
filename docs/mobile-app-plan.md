@@ -125,7 +125,9 @@ disc. Declination is a manual `decl=` URL param for now (≈ +5 in Central
 Europe 2026) — a JS WMM evaluation or drag-to-calibrate remains open.
 Milestone 2 is being satisfied without Leaflet: URL params + GPS today, a
 nearby-hills landing page (list from peaks-rated.tsv) planned instead of a
-map. 4 (offline) and 5 (PWA manifest/fullscreen-on-iOS) open.
+map. 5 (PWA manifest) done: manifest.webmanifest + generated icons
+(scripts/make_icons.py), display standalone = fullscreen from the home
+screen on both platforms. 4 (offline) open.
 
 0. **Sensor page, no WASM, no build system** (~100 lines JS): show live
    GPS lat/lon/accuracy + compass heading + pitch as text. Walk around.

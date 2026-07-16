@@ -27,7 +27,9 @@ install -m 644 "$repo/deploy/nginx-panorama.conf" "$conf/default.conf"
 # ../build-wasm and ../data references still resolve from /.
 rm -rf "$app/web"    # layout of earlier deploys
 mkdir -p "$app/build-wasm"
-install -m 644 "$repo/web/index.html" "$repo/web/app.js" "$app/"
+install -m 644 "$repo/web/index.html" "$repo/web/app.js" \
+    "$repo/web/manifest.webmanifest" "$repo/web/icon-192.png" \
+    "$repo/web/icon-512.png" "$app/"
 install -m 644 "$repo/build-wasm/pano.js" "$repo/build-wasm/pano.wasm" "$app/build-wasm/"
 echo "conf + app deployed"
 

@@ -90,6 +90,7 @@ the script location, so they work from any CWD). Summary:
 | `extract_geofabrik_peaks.py` | offline peak extraction from manually downloaded Geofabrik country PBFs | `data/geofabrik-peaks/*-peaks.json.zst`, `data/peaks-geofabrik.tsv` |
 | `build_peaks_db.py` | peak rating stage 1: match OSM peaks against the `prominence` tool's sweep | `data/peaks-rated.tsv`, `data/peaks-rejected.tsv` |
 | `dump_dist_native.py` | dist_map.png → raw uint16 reference for `web/test-node.mjs` | `dist_native.bin` (CWD) |
+| `make_icons.py` | regenerate the PWA icons (deterministic) | `web/icon-{192,512}.png` |
 
 The two `*_hgt` and the two `*_osm_*` scripts intentionally overlap: the
 short ones serve the renderer today, the archive ones hedge against data
