@@ -1,18 +1,16 @@
 #pragma once
-// parallelFor — minimal portable replacement for
-// "#pragma omp parallel for schedule(dynamic, grain)".
+// parallelFor — minimal dynamically-scheduled parallel index loop on
+// std::thread.
 //
 // Workers (including the calling thread) pull grain-sized index chunks off a
 // shared atomic counter, which is dynamic scheduling: uneven chunk costs
 // balance automatically (ray columns finish early on sky, isolation searches
 // vary by orders of magnitude). Consequently chunk execution order is
-// unspecified — callers must ensure every index owns its output slice, which
-// is also what kept the OpenMP version race-free.
+// unspecified — callers must ensure every index owns its output slice.
 //
 // Exceptions: the first one thrown by any chunk is rethrown on the calling
 // thread after all workers drained (remaining workers stop at their next
-// chunk boundary; later exceptions are dropped). This is stricter than
-// OpenMP, where a throw escaping a parallel region is std::terminate.
+// chunk boundary; later exceptions are dropped).
 //
 // Serial fallback: Emscripten without pthreads (our WASM build), a single
 // CPU, or a range that fits one chunk.

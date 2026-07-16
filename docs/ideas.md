@@ -182,8 +182,7 @@ Either shell is a day of plumbing.
   refraction re-raycast), hover readout of distance/azimuth from the
   distance map, click an unlabeled bump → query rated/rejected DB for the
   reason, tune gate constants with immediate feedback. ImGui's FreeType
-  atlas renders UTF-8 labels properly — retires the OpenCV Hershey
-  diacritics problem without Cairo.
+  atlas renders UTF-8 labels properly.
 - **Qt/QML** earns its weight only as a product: QtLocation location
   picker, QPrinter → PDF (printable scroll), file dialogs. Framework
   ceremony that experimentation doesn't need; the mobile PWA may claim
@@ -268,24 +267,13 @@ one actually squints at through binoculars.
 
 ## Portability / infrastructure cleanup (pre-desktop-app)
 
-- **Done — dropped OpenMP for own `parallelFor` (src/parallel.hpp)**
-  (compiler-specific pragmas, MSVC stuck at OpenMP 2.x, sharing errors).
-  All four uses (distmap columns, outlines rows, tile loading, isolation)
-  are index-range loops without reductions. Implementation: worker threads
-  pulling chunks off one `atomic<int>` via `fetch_add(grain)` — that is
-  `schedule(dynamic)` in ~30 portable lines; dynamic balancing matters
-  (ray columns vary in cost, early sky exit). Serial fallback on
-  Emscripten / single core; capture first exception, rethrow after join.
-  Output stays scheduling-independent (each index owns its slice) → bit
-  parity unaffected. Avoid std::async (per-task overhead, no balancing);
-  TBB is too big a dependency for one primitive.
-- **Done — dropped OpenCV.** PNG via own writer on bare zlib
+- **Done — self-contained native build.** Parallelism is own `parallelFor`
+  (src/parallel.hpp: dynamic scheduling over one atomic counter, serial
+  fallback, exception-safe); PNG via own writer on bare zlib
   (src/pngwrite.cpp: chunks + CRC32 + Up-filtered scanlines; gray8/16,
-  rgb24/48 share one code path), lines are axis-aligned pixel runs,
-  text via the SDF atlas. Native binary links only zlib + libstdc++.
-  WASM never needed any of it — JS canvas owns output ("download PNG"
-  = `canvas.toBlob()`; C-side 16-bit export in wasm would be
-  Emscripten's `-sUSE_LIBPNG=1` port).
+  rgb24/48 share one code path); text via the SDF atlas. Native binary
+  links only zlib + libstdc++. WASM-side PNG export stays JS-owned
+  ("download PNG" = `canvas.toBlob()`).
 - **Text: baked SDF/MSDF atlas, no HarfBuzz.** HarfBuzz is a shaping
   engine (Arabic joining, Indic reordering); CZ/SK/DE/PL/HU/RO + Greek +
   Cyrillic are precomposed NFC codepoints with plain advances — simple

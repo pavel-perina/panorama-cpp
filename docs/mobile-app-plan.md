@@ -67,15 +67,14 @@ extern "C" {
 ```
 
 Division of labor: C++ = dist map + visibility test. JS = label drawing on
-canvas (Canvas2D `fillText` does UTF-8 correctly — this also fixes the
-OpenCV Hershey diacritics problem for the web version), sky color, fog
+canvas (Canvas2D `fillText` does UTF-8 correctly), sky color, fog
 shader (either JS per-pixel or later inside C++).
 
 Build notes:
 
 - `emcmake cmake -B build-wasm -S .` with an `EMSCRIPTEN` branch in
-  CMakeLists that excludes OpenCV/OpenMP (guard the `#pragma omp` code —
-  it compiles fine without OpenMP, just serial).
+  CMakeLists (compute-only target; `parallelFor` falls back to serial
+  there).
 - **Start single-threaded.** Emscripten pthreads need SharedArrayBuffer ⇒
   COOP/COEP response headers ⇒ hosting hassle. A once-per-fix render is fine
   on one core. Enable `-msimd128` (WASM SIMD) for free vectorization.

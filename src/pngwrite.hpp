@@ -1,6 +1,6 @@
 #pragma once
 // Minimal PNG writer on bare zlib — the whole format is chunks + CRC32 +
-// one DEFLATE stream of filtered scanlines. Replaces OpenCV imwrite.
+// one DEFLATE stream of filtered scanlines.
 
 #include <filesystem>
 

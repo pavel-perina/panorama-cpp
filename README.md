@@ -10,7 +10,7 @@ summit-annotation analysis.
 
 Dependencies: CMake ≥ 3.20, GCC ≥ 14 (uses `std::println`), zlib (own PNG
 writer, `src/pngwrite.cpp`). Parallelism is std::thread only
-(`src/parallel.hpp`) — no OpenMP, no OpenCV.
+(`src/parallel.hpp`).
 
 ```sh
 cmake -B build -S .

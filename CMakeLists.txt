@@ -16,7 +16,7 @@ if(PANO_EXACT_RAYCAST)
 endif()
 
 if(EMSCRIPTEN)
-    # WASM library for the web app: compute only, no OpenCV/OpenMP.
+    # WASM library for the web app: compute only, single-threaded.
     # Build:  source ~/emsdk/emsdk_env.sh && emcmake cmake -B build-wasm -S . && cmake --build build-wasm
     # Output: build-wasm/pano.js + pano.wasm (copy or serve next to web/).
     add_executable(pano_wasm

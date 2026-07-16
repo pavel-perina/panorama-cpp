@@ -91,7 +91,7 @@ HeightMap HeightMap::load(const LatLonRange &range, const std::filesystem::path 
         hm.addTileRaw(lat, lon, raw.data());
     };
     // grain 1: a chunk is one tile (file I/O + decompress). A missing tile's
-    // exception propagates out of parallelFor (OpenMP terminated instead).
+    // exception propagates out of parallelFor.
     parallelFor(0, range.tilesTotal(), 1, [&](int b, int e) {
         for (int i = b; i < e; ++i)
             loadTile(i);
