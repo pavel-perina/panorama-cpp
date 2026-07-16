@@ -1,10 +1,22 @@
 // WASM renderer in the browser. JS owns all I/O: fetches tiles + summit
 // TSV, calls the WASM module, draws on canvas. Pan by drag/arrows, zoom by
-// wheel/pinch, visibility slider re-tonemaps, refraction slider re-raycasts.
-// Scene state lives in URL params (shareable): ?lat=&lon=&dh=&az=&ele=&dist=
+// wheel/pinch; visibility and refraction sliders re-render (render distance
+// is capped at 1.2x visibility — beyond that terrain is <2% contrast, i.e.
+// indistinguishable from sky, so the cap is lossless and ~halves the cost).
+//
+// The view scrolls over a virtual 360° strip built from twelve 30° sectors,
+// each rendered on demand into its own offscreen canvas and LRU-cached
+// (a single 360° canvas would exceed iOS Safari's canvas-area budget).
+// Compass follow and the direction buttons only move the viewport; a render
+// happens only when an uncached sector scrolls into view, and idle time
+// prefetches the neighbor sector in the direction of travel.
+//
+// Scene state lives in URL params (shareable):
+//   ?lat=&lon=&dh=&az=&ele=&dist=&decl=  (decl: magnetic declination in
+//   degrees, added to compass headings; ~+5 in Central Europe 2026)
 "use strict";
 
-// Defaults: Kamenice lookout, sector centered az 30° (matches src/main.cpp).
+// Defaults: Kamenice lookout, view centered az 30° (matches src/main.cpp).
 const params = new URLSearchParams(location.search);
 const num = (k, d) => (params.has(k) ? Number(params.get(k)) : d);
 const SCENE = {
@@ -17,12 +29,19 @@ const SCENE = {
   },
   eyeAboveM: num("dh", 5.0),
   azCenterDeg: ((num("az", 30.0) % 360) + 360) % 360,
-  azHalfDeg: 30.0,
-  azMinDeg: 0.0, azMaxDeg: 60.0, // derived from azCenterDeg on each render
   elMinRad: -0.0560, elMaxRad: 0.0339,
   stepRad: 0.0001,
-  distMaxM: num("dist", 250) * 1000,
+  distMaxM: num("dist", 250) * 1000, // tile fetch radius + render distance cap
+  declDeg: num("decl", 0.0),
 };
+
+const DEG_PER_PX = SCENE.stepRad * 180 / Math.PI;
+const STRIP_W = 360 / DEG_PER_PX;      // virtual strip width, px (float)
+const SECTOR_DEG = 30;
+const SECTOR_PX = SECTOR_DEG / DEG_PER_PX;
+const MAX_SECTORS = 6;                 // LRU cap: ~28 MP of canvases, iOS-safe
+let stripH =                           // exact value confirmed from api.height()
+  Math.floor((SCENE.elMaxRad - SCENE.elMinRad) / SCENE.stepRad) + 2;
 
 // Integer-degree tile range covering distMaxM around the eye.
 function tileRange() {
@@ -37,18 +56,23 @@ function tileRange() {
   };
 }
 
+// Distance from the eye to the nearest point of a 1x1° tile, km. Rays stop
+// at distMax, so tiles entirely beyond it can be skipped without changing a
+// pixel — the bounding square of tiles becomes a disc (~20% fewer fetches).
+// Conservative: uses the highest-|lat| cosine so distance is underestimated.
+function tileNearestKm(lat, lon) {
+  const clat = Math.min(Math.max(SCENE.eye.lat, lat), lat + 1);
+  const clon = Math.min(Math.max(SCENE.eye.lon, lon), lon + 1);
+  const cosLat = Math.cos(Math.max(Math.abs(SCENE.eye.lat), Math.abs(clat)) * Math.PI / 180);
+  const dy = (clat - SCENE.eye.lat) * 111.2;
+  const dx = (clon - SCENE.eye.lon) * 111.2 * cosLat;
+  return Math.hypot(dx, dy);
+}
+
 // SRTM tile name from its floored SW corner: lat -34, lon -71 -> S34W071.
 function tileName(lat, lon) {
   return (lat < 0 ? "S" : "N") + String(Math.abs(lat)).padStart(2, "0") +
          (lon < 0 ? "W" : "E") + String(Math.abs(lon)).padStart(3, "0") + ".hgt";
-}
-
-function syncUrl() {
-  const p = new URLSearchParams(location.search);
-  p.set("lat", SCENE.eye.lat.toFixed(6));
-  p.set("lon", SCENE.eye.lon.toFixed(6));
-  p.set("az", Math.round(SCENE.azCenterDeg));
-  history.replaceState(null, "", "?" + p);
 }
 
 const DATA_URL = "../data";
@@ -58,89 +82,106 @@ const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
 const status = (msg) => { document.getElementById("status").textContent = msg; };
 
-// Module state (set by main), kept for re-render and re-tonemap.
-let api = null, wasm = null, tsvCache = "";
-let distData = null, distW = 0, distH = 0;
-let visibleSummits = [];
+// Module state (set by main).
+let api = null, wasm = null, tsvCache = "", ready = false;
 
-// Full rendered strip on an offscreen canvas; the visible canvas is a fixed
-// viewport and only the image content zooms/pans inside it. Offsets are the
-// strip coordinates of the viewport's top-left corner.
-let strip = null;
+// Viewport over the virtual strip: offsets are strip coordinates of the
+// viewport's top-left corner; offsetX wraps modulo STRIP_W.
 let offsetX = 0, offsetY = 0;
 let zoom = 1.0;
+let lastDir = 1; // last horizontal scroll direction (prefetch hint)
+
+// Sector cache: index 0-11 -> {canvas, summits (sector-local x), stamp}.
+const sectors = new Map();
+let stamp = 0;
+const mod12 = (k) => ((k % 12) + 12) % 12;
+
+// Unwrapped sector numbers covering the viewport (k*30° may exceed 360;
+// mod12(k) is the cache index, k keeps the layout math wrap-free).
+function visibleKs() {
+  const k0 = Math.floor(offsetX / SECTOR_PX);
+  const k1 = Math.floor((offsetX + canvas.width / zoom) / SECTOR_PX);
+  const ks = [];
+  for (let k = k0; k <= k1; ++k) ks.push(k);
+  return ks;
+}
+
+function visKm() { return Number(document.getElementById("vis").value); }
 
 function clampZoom(z) {
   const vh = window.innerHeight - document.getElementById("bar").offsetHeight;
   // min: fit height, but never force stretching past 100% on tall screens
-  const min = strip ? Math.min(1, vh / strip.height) : 0.2;
+  const min = Math.min(1, vh / stripH);
   return Math.max(min, Math.min(6, z));
 }
 
+const SKY = [149, 195, 233];    // airlight / sky color (light blue)
+const TERRAIN = [50, 65, 0];    // near-terrain color (khaki)
+
 function draw() {
-  if (!strip) return;
   const vw = window.innerWidth;
   const vh = window.innerHeight - document.getElementById("bar").offsetHeight;
   canvas.width = vw;
   canvas.height = vh;
   zoom = clampZoom(zoom);
-  const sw = vw / zoom, sh = vh / zoom;
-  offsetX = Math.max(0, Math.min(offsetX, strip.width - sw));
-  offsetY = Math.max(0, Math.min(offsetY, strip.height - sh));
-  ctx.imageSmoothingEnabled = zoom < 1; // smooth when zoomed out, crisp pixels zoomed in
-  ctx.drawImage(strip, offsetX, offsetY, sw, sh, 0, 0, vw, vh);
-  drawOverlay();
-}
+  offsetX = ((offsetX % STRIP_W) + STRIP_W) % STRIP_W;
+  offsetY = Math.max(0, Math.min(offsetY, stripH - vh / zoom));
 
-// Aerial-perspective tonemap (Koschmieder): terrain fades into the sky with
-// distance; visibilityKm is the meteorological visibility V.
-const TERRAIN = [50, 65, 0]; // near-terrain color (khaki)
-const SKY = [149, 195, 233];    // airlight / sky color (light blue)
-
-function renderStrip(visibilityKm) {
-  // Tonemapping (Koschmieder fade, OkLab-interpolated) happens in WASM.
-  const ptr = api.tonemap(visibilityKm, ...TERRAIN, ...SKY);
-  const rgba = new Uint8ClampedArray(wasm.HEAPU8.buffer, ptr, distW * distH * 4);
-  const img = new ImageData(rgba, distW, distH);
-  if (!strip || strip.width !== distW || strip.height !== distH) {
-    strip = document.createElement("canvas");
-    strip.width = distW;
-    strip.height = distH;
+  ctx.imageSmoothingEnabled = zoom < 1; // smooth zoomed out, crisp pixels zoomed in
+  ctx.fillStyle = `rgb(${SKY[0]},${SKY[1]},${SKY[2]})`; // placeholder for unrendered sectors
+  ctx.fillRect(0, 0, vw, vh);
+  let missing = false;
+  for (const k of visibleKs()) {
+    const s = sectors.get(mod12(k));
+    if (!s) { missing = true; continue; }
+    s.stamp = ++stamp;
+    ctx.drawImage(s.canvas,
+                  offsetX - k * SECTOR_PX, offsetY, vw / zoom, vh / zoom,
+                  0, 0, vw, vh);
   }
-  strip.getContext("2d").putImageData(img, 0, 0);
-  draw();
+  drawOverlay();
+  if (missing && ready) pump();
+  scheduleUrlSync();
 }
 
 // Labels + vector layer as a screen-space overlay, redrawn every frame:
 // geometry anchored in strip coordinates, style in screen pixels — lines
 // stay 1 px and text stays 14 px at any zoom.
 function drawOverlay() {
-  const toX = (x) => (x - offsetX) * zoom;
   const toY = (y) => (y - offsetY) * zoom;
   const c = ctx;
   c.font = "14px Inter, sans-serif";
   c.lineWidth = 1;
   c.textAlign = "left";
 
-  // summit stems + labels; greedy screen-space spacing (summits arrive
-  // prominence-first from C++) prunes crowding when zoomed out
+  // summits from all visible sectors, most prominent first, greedy 20 px
+  // screen-space spacing prunes crowding when zoomed out
+  const cand = [];
+  for (const k of visibleKs()) {
+    const s = sectors.get(mod12(k));
+    if (!s) continue;
+    for (const p of s.summits) {
+      const x = (k * SECTOR_PX + p.x - offsetX) * zoom;
+      if (x < -40 || x > canvas.width + 40) continue;
+      cand.push({ ...p, sx: x });
+    }
+  }
+  cand.sort((a, b) => b.prom - a.prom);
   const labelBaseY = toY(300);
   const taken = [];
-  for (const s of visibleSummits) {
-    const x = toX(s.x);
-    if (x < -40 || x > canvas.width + 40) continue;
-    if (taken.some((t) => Math.abs(t - x) < 20)) continue;
-    taken.push(x);
+  for (const p of cand) {
+    if (taken.some((t) => Math.abs(t - p.sx) < 20)) continue;
+    taken.push(p.sx);
     c.strokeStyle = "#4d5a63";
     c.beginPath();
-    c.moveTo(Math.round(x) + 0.5, toY(s.y));
-    c.lineTo(Math.round(x) + 0.5, labelBaseY);
+    c.moveTo(Math.round(p.sx) + 0.5, toY(p.y));
+    c.lineTo(Math.round(p.sx) + 0.5, labelBaseY);
     c.stroke();
     c.fillStyle = "#0b4d7a";
     c.save();
-    c.translate(x + 5, labelBaseY - 5);
+    c.translate(p.sx + 5, labelBaseY - 5);
     c.rotate(-Math.PI / 4);
-    c.fillText(`${s.name} (${Math.round(s.distanceM / 1000)} km)`, 0, 0);
+    c.fillText(`${p.name} (${Math.round(p.distanceM / 1000)} km)`, 0, 0);
     c.restore();
   }
 
@@ -148,11 +189,10 @@ function drawOverlay() {
   c.strokeStyle = "#4d5a63";
   c.fillStyle = "#0b4d7a";
   c.textAlign = "center";
-  const degPerPx = SCENE.stepRad * 180 / Math.PI; // strip px -> degrees
-  const azLeft = SCENE.azMinDeg + offsetX * degPerPx;
-  const azRight = SCENE.azMinDeg + (offsetX + canvas.width / zoom) * degPerPx;
+  const azLeft = offsetX * DEG_PER_PX;
+  const azRight = azLeft + canvas.width / zoom * DEG_PER_PX;
   for (let az = Math.ceil(azLeft); az <= Math.floor(azRight); ++az) {
-    const x = Math.round(toX((az - SCENE.azMinDeg) / degPerPx)) + 0.5;
+    const x = Math.round((az / DEG_PER_PX - offsetX) * zoom) + 0.5;
     c.beginPath();
     c.moveTo(x, 26); c.lineTo(x, 34);
     c.stroke();
@@ -170,35 +210,116 @@ function drawOverlay() {
   }
 }
 
-// Raycast (or re-raycast after a refraction/sector change) + summit test + tonemap.
-let rendering = false;
-async function render() {
-  rendering = true;
-  status("Rendering…");
+// --- sector rendering (raycast + summit test + tonemap, one at a time) -----
+
+let renderBusy = false;
+let prefetchTimer = null;
+
+async function renderSector(i) {
+  renderBusy = true;
+  const azMin = i * SECTOR_DEG, azMax = azMin + SECTOR_DEG;
+  status(`Rendering ${azMin}–${azMax}°…`);
   await new Promise(requestAnimationFrame); // let the status paint
-  SCENE.azMinDeg = SCENE.azCenterDeg - SCENE.azHalfDeg;
-  SCENE.azMaxDeg = SCENE.azCenterDeg + SCENE.azHalfDeg;
-  const refraction = Number(document.getElementById("refr").value);
   const t0 = performance.now();
-  const distPtr = api.render(
-    SCENE.eye.lat, SCENE.eye.lon, SCENE.eye.ele,
-    SCENE.azMinDeg, SCENE.azMaxDeg, SCENE.elMinRad, SCENE.elMaxRad,
-    SCENE.stepRad, SCENE.distMaxM, refraction);
-  distW = api.width();
-  distH = api.height();
-  // copy out of the WASM heap: memory growth may detach the view later
-  distData = wasm.HEAPU16.slice(distPtr / 2, distPtr / 2 + distW * distH);
-  const renderMs = performance.now() - t0;
+  const refraction = Number(document.getElementById("refr").value);
+  // beyond 1.2x visibility terrain has <2% contrast against the sky
+  // (Koschmieder) — quantizes to sky anyway, so capping is lossless
+  const distEffM = Math.min(SCENE.distMaxM, 1.2 * visKm() * 1000);
+  api.render(SCENE.eye.lat, SCENE.eye.lon, SCENE.eye.ele,
+             azMin, azMax, SCENE.elMinRad, SCENE.elMaxRad,
+             SCENE.stepRad, distEffM, refraction);
+  const w = api.width(), h = api.height();
+  stripH = h;
+
+  // summits first: the TSV malloc may grow wasm memory, which would detach
+  // a heap view taken earlier
   const tsvBytes = new TextEncoder().encode(tsvCache);
   const tsvPtr = wasm._malloc(tsvBytes.length + 1);
   wasm.HEAPU8.set(tsvBytes, tsvPtr);
   wasm.HEAPU8[tsvPtr + tsvBytes.length] = 0;
-  visibleSummits = JSON.parse(api.summits(tsvPtr));
+  const summits = JSON.parse(api.summits(tsvPtr));
   wasm._free(tsvPtr);
-  renderStrip(Number(document.getElementById("vis").value));
-  status(`${distW}×${distH} px, render ${renderMs.toFixed(0)} ms, ` +
-         `${visibleSummits.length} summits visible — drag to pan, wheel/pinch to zoom`);
-  rendering = false;
+
+  const ptr = api.tonemap(visKm(), ...TERRAIN, ...SKY);
+  const rgba = new Uint8ClampedArray(wasm.HEAPU8.buffer, ptr, w * h * 4);
+  const cv = document.createElement("canvas");
+  cv.width = w;
+  cv.height = h;
+  cv.getContext("2d").putImageData(new ImageData(rgba, w, h), 0, 0);
+
+  sectors.set(i, { canvas: cv, summits, stamp: ++stamp });
+  while (sectors.size > MAX_SECTORS) {
+    let lru = null;
+    for (const [idx, s] of sectors)
+      if (lru === null || s.stamp < sectors.get(lru).stamp) lru = idx;
+    sectors.delete(lru);
+  }
+  renderBusy = false;
+  status(`${azMin}–${azMax}° in ${(performance.now() - t0).toFixed(0)} ms — ` +
+         `drag to pan, wheel/pinch to zoom`);
+  draw();
+}
+
+// Render missing visible sectors (in view order); when the view is fully
+// rendered, arm the idle prefetch of the next sector in the travel direction.
+async function pump() {
+  if (!ready || renderBusy) return;
+  const need = visibleKs().map(mod12).filter((i) => !sectors.has(i));
+  if (need.length) {
+    await renderSector(need[0]);
+    pump();
+    return;
+  }
+  clearTimeout(prefetchTimer);
+  prefetchTimer = setTimeout(prefetchNeighbor, 400);
+}
+
+function prefetchNeighbor() {
+  if (!ready || renderBusy) return;
+  const ks = visibleKs();
+  const cands = lastDir >= 0 ? [ks[ks.length - 1] + 1, ks[0] - 1]
+                             : [ks[0] - 1, ks[ks.length - 1] + 1];
+  for (const k of cands) {
+    if (!sectors.has(mod12(k))) {
+      renderSector(mod12(k)).then(() => {
+        prefetchTimer = setTimeout(prefetchNeighbor, 400);
+      });
+      return;
+    }
+  }
+}
+
+// Scene-parameter change (visibility, refraction): all cached sectors are
+// stale — drop them and re-render the view.
+function invalidateSectors() {
+  sectors.clear();
+  draw();
+}
+
+// --- URL state ---------------------------------------------------------------
+
+let urlTimer = null;
+function scheduleUrlSync() {
+  clearTimeout(urlTimer);
+  urlTimer = setTimeout(() => {
+    const center = (offsetX + canvas.width / zoom / 2) * DEG_PER_PX;
+    const p = new URLSearchParams(location.search);
+    p.set("lat", SCENE.eye.lat.toFixed(6));
+    p.set("lon", SCENE.eye.lon.toFixed(6));
+    p.set("az", Math.round(((center % 360) + 360) % 360));
+    history.replaceState(null, "", "?" + p);
+  }, 800);
+}
+
+// Center the viewport on an azimuth (no render — draw() requests sectors).
+function lookAt(azDeg) {
+  const az = ((azDeg % 360) + 360) % 360;
+  const prev = offsetX;
+  // window size, not canvas: canvas dimensions lag until the next draw()
+  offsetX = az / DEG_PER_PX - window.innerWidth / zoom / 2;
+  const d = ((offsetX - prev) % STRIP_W + STRIP_W * 1.5) % STRIP_W - STRIP_W / 2;
+  if (d) lastDir = Math.sign(d);
+  draw();
 }
 
 async function main() {
@@ -223,13 +344,15 @@ async function main() {
     eyeElevation: wasm.cwrap("pano_eyeElevation", "number", ["number", "number"]),
   };
 
-  // Fetch tiles straight into the WASM heap.
+  // Fetch tiles straight into the WASM heap — only those the render
+  // distance can reach (disc, not bounding square).
   const r = tileRange();
   api.reset(r.minLat, r.minLon, r.maxLat, r.maxLon);
   const tiles = [];
   for (let lat = r.minLat; lat <= r.maxLat; ++lat)
     for (let lon = r.minLon; lon <= r.maxLon; ++lon)
-      tiles.push([lat, lon]);
+      if (tileNearestKm(lat, lon) <= SCENE.distMaxM / 1000 + 2)
+        tiles.push([lat, lon]);
   let loaded = 0;
   for (const [lat, lon] of tiles) {
     const name = tileName(lat, lon);
@@ -270,34 +393,28 @@ async function main() {
   if (!tsvResp.ok) tsvResp = await fetch(`${DATA_URL}/summits.tsv`);
   tsvCache = await tsvResp.text();
 
-  // Controls: visibility re-tonemaps instantly, refraction re-raycasts.
+  // Controls: both sliders re-render on release (visibility caps the render
+  // distance, so it is a raycast parameter now, not only a tonemap one).
   const vis = document.getElementById("vis");
   const refr = document.getElementById("refr");
   document.getElementById("visctl").style.display = "";
   document.getElementById("refrctl").style.display = "";
   vis.addEventListener("input", () => {
     document.getElementById("visval").textContent = `${vis.value} km`;
-    renderStrip(Number(vis.value));
   });
+  vis.addEventListener("change", invalidateSectors);
   refr.addEventListener("input", () => {
     document.getElementById("refrval").textContent = Number(refr.value).toFixed(2);
   });
-  refr.addEventListener("change", render); // on release, ~1 s
+  refr.addEventListener("change", invalidateSectors);
 
   setupControls();
   await fontReady;
-  await render();
+  ready = true;
+  lookAt(SCENE.azCenterDeg);
 }
 
 // --- viewpoint / direction controls (phone-first) ---------------------------
-
-// Re-render the 60° sector facing azDeg (N=0, E=90, ...).
-async function setSector(azDeg) {
-  if (rendering) return;
-  SCENE.azCenterDeg = ((azDeg % 360) + 360) % 360;
-  syncUrl();
-  await render();
-}
 
 // Compass heading from a plain deviceorientation event (Android absolute):
 // project the vector out of the device's back onto the horizontal plane.
@@ -312,7 +429,6 @@ function compassHeading(alpha, beta, gamma) {
 }
 
 let compassOn = false;
-let compassTimer = null;
 let smoothAz = null; // low-pass filtered heading (shaky hands, magnetometer noise)
 
 function onOrientation(e) {
@@ -323,28 +439,15 @@ function onOrientation(e) {
              (e.absolute || e.type === "deviceorientationabsolute")) {
     heading = compassHeading(e.alpha, e.beta, e.gamma);  // Android
   }
-  if (heading == null || !strip) return;
+  if (heading == null || !ready) return;
+  heading = (heading + SCENE.declDeg + 360) % 360; // magnetic -> true north
   // Adaptive smoothing (One Euro style): gain grows with the deviation, so
   // hand tremor (~1-2°) is damped hard but a deliberate turn tracks fast.
   if (smoothAz == null) smoothAz = heading;
   const dAz = ((heading - smoothAz + 540) % 360) - 180;
   const gain = Math.min(0.5, 0.02 + Math.abs(dAz) * 0.03);
   smoothAz = (smoothAz + gain * dAz + 360) % 360;
-  heading = smoothAz;
-  // wrapped offset of the heading from the sector center, in [-180, 180)
-  const rel = ((heading - SCENE.azCenterDeg + 540) % 360) - 180;
-  if (Math.abs(rel) <= SCENE.azHalfDeg - 3) {
-    // inside the rendered sector: scroll the strip to center the heading
-    const px = (rel + SCENE.azHalfDeg) * (Math.PI / 180) / SCENE.stepRad;
-    offsetX = px - canvas.width / zoom / 2;
-    draw();
-  } else if (!rendering && !compassTimer) {
-    // left the sector: re-render facing the heading once it settles
-    compassTimer = setTimeout(() => {
-      compassTimer = null;
-      if (compassOn) setSector(heading);
-    }, 700);
-  }
+  lookAt(smoothAz); // pure scroll; missing sectors render via draw() -> pump()
 }
 
 async function toggleCompass(btn) {
@@ -407,7 +510,7 @@ function setupControls() {
 
   for (const [name, az] of [["N", 0], ["NE", 45], ["E", 90], ["SE", 135],
                             ["S", 180], ["SW", 225], ["W", 270], ["NW", 315]])
-    mk(name, `look ${name} (az ${az}°)`, () => setSector(az));
+    mk(name, `look ${name} (az ${az}°)`, () => lookAt(az));
 
   const about = document.getElementById("about");
   about.addEventListener("click", (e) => { if (e.target === about) about.close(); });
@@ -444,7 +547,9 @@ canvas.addEventListener("pointermove", (e) => {
   if (!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 1 && dragStart) {
-    offsetX = dragStart.offsetX - (e.clientX - dragStart.x) / zoom;
+    const dx = e.clientX - dragStart.x;
+    if (dx) lastDir = -Math.sign(dx);
+    offsetX = dragStart.offsetX - dx / zoom;
     offsetY = dragStart.offsetY - (e.clientY - dragStart.y) / zoom;
     draw();
   } else if (pointers.size === 2) {
@@ -468,8 +573,8 @@ canvas.addEventListener("wheel", (e) => {
 }, { passive: false });
 window.addEventListener("keydown", (e) => {
   if (document.activeElement instanceof HTMLInputElement) return; // sliders own the arrows
-  if (e.key === "ArrowLeft") { offsetX -= 100 / zoom; draw(); }
-  if (e.key === "ArrowRight") { offsetX += 100 / zoom; draw(); }
+  if (e.key === "ArrowLeft") { offsetX -= 100 / zoom; lastDir = -1; draw(); }
+  if (e.key === "ArrowRight") { offsetX += 100 / zoom; lastDir = 1; draw(); }
   if (e.key === "ArrowUp") { offsetY -= 50 / zoom; draw(); }
   if (e.key === "ArrowDown") { offsetY += 50 / zoom; draw(); }
   if (e.key === "+" || e.key === "=") zoomAt(canvas.width / 2, canvas.height / 2, zoom * 1.25);

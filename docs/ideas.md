@@ -218,6 +218,12 @@ badly. Boundary that seems right:
 
 ## Sector cache + speculative rendering (web/PWA)
 
+**Status 2026-07-16: implemented in web/app.js as designed** — 12×30°
+sectors, LRU cap 6 canvases, idle neighbor prefetch in the scroll
+direction, render distance capped at 1.2× visibility, tile fetch limited
+to the distance disc. Remaining ideas below (per-sector re-render on late
+tiles, worker-thread rendering) are still open.
+
 Today (0fd2e59) the web app renders one 60° sector and re-renders from
 scratch when the compass leaves it — a visible ~600 ms+ stall at every
 sector edge. Column independence makes the fix mechanical:

@@ -46,12 +46,22 @@ python3 -m http.server 8000      # from repo root, open http://localhost:8000/we
 Scene state lives in URL params, all optional:
 `?lat=&lon=` viewpoint (default Kamenice), `dh=` eye height above terrain
 (default +5 m; eye elevation = 3×3 heightmap max + dh, GPS altitude is
-ignored), `ele=` absolute eye elevation override, `az=` sector center
-(60° window), `dist=` max render distance in km (default 250; also sets
-the tile fetch radius). Toolbar: 📍 geolocate, 🧭 compass follow (adaptive
-heading smoothing; scrolls within the rendered sector, re-renders on
-leaving it), N…NW direction buttons, ⛶ fullscreen. Sensors require HTTPS —
-use the deployed host, not `http://` LAN addresses.
+ignored), `ele=` absolute eye elevation override, `az=` view center,
+`dist=` tile fetch radius / max render distance in km (default 250),
+`decl=` magnetic declination added to compass headings (≈ +5 in Central
+Europe 2026). Tiles are fetched only within the render-distance disc, not
+the full bounding square.
+
+The view scrolls over a virtual 360° strip built from twelve 30° sectors,
+rendered on demand into LRU-cached canvases (idle time prefetches the
+neighbor in the scroll direction), so compass follow and the N…NW buttons
+never block on a render once their sectors are cached. Render distance is
+capped at 1.2× the visibility slider — beyond that terrain is under 2 %
+contrast (Koschmieder), indistinguishable from sky, so the cap is
+lossless; both sliders re-render on release. Toolbar: 📍 geolocate,
+🧭 compass follow (adaptive heading smoothing), N…NW direction buttons,
+⛶ fullscreen, ⓘ about. Sensors require HTTPS — use the deployed host,
+not `http://` LAN addresses.
 
 Self-hosting: see `deploy/` (podman quadlet + nginx). After a wasm or
 web/ change, rerun `deploy/deploy.sh`. Beware the dev-server cache
