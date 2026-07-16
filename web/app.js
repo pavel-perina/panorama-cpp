@@ -83,11 +83,12 @@ function draw() {
   offsetY = Math.max(0, Math.min(offsetY, strip.height - sh));
   ctx.imageSmoothingEnabled = zoom < 1; // smooth when zoomed out, crisp pixels zoomed in
   ctx.drawImage(strip, offsetX, offsetY, sw, sh, 0, 0, vw, vh);
+  drawOverlay();
 }
 
 // Aerial-perspective tonemap (Koschmieder): terrain fades into the sky with
 // distance; visibilityKm is the meteorological visibility V.
-const TERRAIN = [123, 112, 76]; // near-terrain color (khaki)
+const TERRAIN = [50, 65, 0]; // near-terrain color (khaki)
 const SKY = [149, 195, 233];    // airlight / sky color (light blue)
 
 function renderStrip(visibilityKm) {
@@ -101,46 +102,66 @@ function renderStrip(visibilityKm) {
     strip.height = distH;
   }
   strip.getContext("2d").putImageData(img, 0, 0);
-  drawAnnotations(visibleSummits, SCENE);
   draw();
 }
 
-function drawAnnotations(summits, view) {
-  const c = strip.getContext("2d");
-  const labelBaseY = 300;
-  c.font = "16px 'Fira Sans', sans-serif";
+// Labels + vector layer as a screen-space overlay, redrawn every frame:
+// geometry anchored in strip coordinates, style in screen pixels — lines
+// stay 1 px and text stays 14 px at any zoom.
+function drawOverlay() {
+  const toX = (x) => (x - offsetX) * zoom;
+  const toY = (y) => (y - offsetY) * zoom;
+  const c = ctx;
+  c.font = "14px 'Fira Sans', sans-serif";
   c.lineWidth = 1;
-  for (const s of summits) {
+  c.textAlign = "left";
+
+  // summit stems + labels; greedy screen-space spacing (summits arrive
+  // prominence-first from C++) prunes crowding when zoomed out
+  const labelBaseY = toY(300);
+  const taken = [];
+  for (const s of visibleSummits) {
+    const x = toX(s.x);
+    if (x < -40 || x > canvas.width + 40) continue;
+    if (taken.some((t) => Math.abs(t - x) < 20)) continue;
+    taken.push(x);
     c.strokeStyle = "#4d5a63";
     c.beginPath();
-    c.moveTo(s.x + 0.5, s.y);
-    c.lineTo(s.x + 0.5, labelBaseY);
+    c.moveTo(Math.round(x) + 0.5, toY(s.y));
+    c.lineTo(Math.round(x) + 0.5, labelBaseY);
     c.stroke();
     c.fillStyle = "#0b4d7a";
     c.save();
-    c.translate(s.x + 5, labelBaseY - 5);
+    c.translate(x + 5, labelBaseY - 5);
     c.rotate(-Math.PI / 4);
     c.fillText(`${s.name} (${Math.round(s.distanceM / 1000)} km)`, 0, 0);
     c.restore();
   }
-  // azimuth ticks + horizon
+
+  // azimuth ruler pinned to the viewport top
   c.strokeStyle = "#4d5a63";
   c.fillStyle = "#0b4d7a";
   c.textAlign = "center";
-  for (let az = Math.ceil(view.azMinDeg); az <= Math.floor(view.azMaxDeg); ++az) {
-    const x = Math.round((az - view.azMinDeg) * (Math.PI / 180) / view.stepRad) + 0.5;
+  const degPerPx = SCENE.stepRad * 180 / Math.PI; // strip px -> degrees
+  const azLeft = SCENE.azMinDeg + offsetX * degPerPx;
+  const azRight = SCENE.azMinDeg + (offsetX + canvas.width / zoom) * degPerPx;
+  for (let az = Math.ceil(azLeft); az <= Math.floor(azRight); ++az) {
+    const x = Math.round(toX((az - SCENE.azMinDeg) / degPerPx)) + 0.5;
     c.beginPath();
-    c.moveTo(x, 38); c.lineTo(x, 42);
-    c.moveTo(x, 63); c.lineTo(x, 68);
+    c.moveTo(x, 26); c.lineTo(x, 34);
     c.stroke();
-    c.fillText(`${((az % 360) + 360) % 360}°`, x, 58);
+    c.fillText(`${((az % 360) + 360) % 360}°`, x, 20);
   }
   c.textAlign = "left";
-  const horizonY = Math.round(view.elMaxRad / view.stepRad) + 0.5;
-  c.strokeStyle = "#7d97a8";
-  c.beginPath();
-  c.moveTo(0, horizonY); c.lineTo(strip.width, horizonY);
-  c.stroke();
+
+  // horizon (eye-level) line
+  const hy = Math.round(toY(SCENE.elMaxRad / SCENE.stepRad)) + 0.5;
+  if (hy > 0 && hy < canvas.height) {
+    c.strokeStyle = "#7d97a8";
+    c.beginPath();
+    c.moveTo(0, hy); c.lineTo(canvas.width, hy);
+    c.stroke();
+  }
 }
 
 // Raycast (or re-raycast after a refraction/sector change) + summit test + tonemap.
