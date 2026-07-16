@@ -167,9 +167,28 @@ can read it directly; extra columns carry `EleSrc`, `Prominence`, `Saddle`,
 
 ## Data sources
 
-- Heightmaps: SRTM3 via <https://viewfinderpanoramas.org> (Jonathan de
-  Ferranti) — a personal site; keep the scripts' default pauses.
-- Peaks: OpenStreetMap via Overpass API (fair use: sequential requests
-  with pauses). For bulk work prefer Geofabrik PBF extracts + osmium.
+- Heightmaps: NASA SRTM (Shuttle Radar Topography Mission, public domain),
+  using the void-filled 3-arcsec versions by Jonathan de Ferranti,
+  <https://viewfinderpanoramas.org> — a personal site; keep the scripts'
+  default pauses.
+- Peaks: © OpenStreetMap contributors, [ODbL](https://www.openstreetmap.org/copyright),
+  via Overpass API (fair use: sequential requests with pauses). For bulk
+  work prefer Geofabrik PBF extracts + osmium.
 - `data/summits.tsv` in git: CZ prominence ≥ 100 m (ultratisicovky.cz) +
   SK prominence ≥ 200 m (peaklist.org) lists inherited from panorama-jl.
+
+## License
+
+MIT (see `LICENSE`). Bundled third-party components keep their own
+licenses:
+
+- `src/3rd_party/zstd/` — Zstandard decoder, BSD (Meta Platforms; see the
+  `LICENSE` file there).
+- `src/common/colors.{h,cpp}` — MIT, portions derived from Björn
+  Ottosson's OKLab reference code (MIT).
+- `data/fonts/font-sdf.bin` — baked from the Inter typeface, SIL Open
+  Font License 1.1 (`data/fonts/Inter-LICENSE.txt`).
+
+Peak data derived from OpenStreetMap (`data/summits.tsv`,
+`data/peaks-rated.tsv`, …) is © OpenStreetMap contributors and licensed
+under the ODbL, not MIT.
