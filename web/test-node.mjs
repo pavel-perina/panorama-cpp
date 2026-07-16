@@ -36,7 +36,8 @@ api.reset(r.minLat, r.minLon, r.maxLat, r.maxLon);
 let zstTiles = 0;
 for (let lat = r.minLat; lat <= r.maxLat; ++lat) {
   for (let lon = r.minLon; lon <= r.maxLon; ++lon) {
-    const name = `N${String(lat).padStart(2, "0")}E${String(lon).padStart(3, "0")}.hgt`;
+    const name = (lat < 0 ? "S" : "N") + String(Math.abs(lat)).padStart(2, "0") +
+                 (lon < 0 ? "W" : "E") + String(Math.abs(lon)).padStart(3, "0") + ".hgt";
     // exercise the zstd path where the mirror has the tile
     let zstUrl = new URL(`../data/hgt3-zst/${name}.zst`, import.meta.url);
     if (!existsSync(zstUrl))

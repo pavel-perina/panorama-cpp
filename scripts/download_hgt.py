@@ -2,7 +2,8 @@
 """Download SRTM3 .hgt tiles from viewfinderpanoramas.org into data/.
 
 Run once. Downloads the 4°x6° graticule zips covering the requested
-integer-degree lat/lon range and extracts only the needed N??E???.hgt files.
+integer-degree lat/lon range and extracts only the needed .hgt tiles
+(N49E015 / S34W071 naming; negative arguments = S/W hemispheres).
 
 Usage: download_hgt.py [min_lat min_lon max_lat max_lon]  (default: 47 15 50 21)
 """
@@ -18,14 +19,24 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def graticule_name(lat: int, lon: int) -> str:
-    """Zip name for a 1x1° tile: letter = 4° lat band (A=0..4°), number = UTM zone."""
-    letter = chr(ord("A") + lat // 4)
+    """Zip name for a 1x1° tile: letter = 4° lat band, number = UTM zone.
+
+    North: A=0..4°N, B=4..8°N, ... (L31 covers 44-48°N, 0-6°E).
+    South: prefixed S, bands count southward: SA=1..4°S, SB=5..8°S, ...
+    (SI19 covers 32-36°S in zone 19). lon // 6 floors, so W works as is.
+    """
     number = 31 + lon // 6
+    if lat < 0:
+        letter = chr(ord("A") + (-lat - 1) // 4)
+        return f"S{letter}{number}"
+    letter = chr(ord("A") + lat // 4)
     return f"{letter}{number}"
 
 
 def tile_name(lat: int, lon: int) -> str:
-    return f"N{lat:02d}E{lon:03d}.hgt"
+    """SRTM name from the floored SW corner: (-34, -71) -> S34W071.hgt."""
+    ns, ew = "S" if lat < 0 else "N", "W" if lon < 0 else "E"
+    return f"{ns}{abs(lat):02d}{ew}{abs(lon):03d}.hgt"
 
 
 def main() -> None:

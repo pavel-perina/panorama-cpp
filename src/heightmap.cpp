@@ -40,7 +40,7 @@ HeightMap HeightMap::load(const LatLonRange &range, const std::filesystem::path 
 {
     HeightMap hm(range);
 
-    std::println("Requesting data for area {}°N {}°E - {}°N {}°E ... (aprox. {:3.0f}x{:3.0f} km).",
+    std::println("Requesting data for area lat {}° lon {}° - lat {}° lon {}° ... (aprox. {:3.0f}x{:3.0f} km).",
                  range.minLat, range.minLon, range.maxLat, range.maxLon,
                  range.tilesHoriz() * 111.1 * std::cos(toRadians(double(range.minLat))),
                  range.tilesVert() * 111.1);
@@ -57,7 +57,10 @@ HeightMap HeightMap::load(const LatLonRange &range, const std::filesystem::path 
         // fallback; hgt3-zst/ is the 3-arcsec mirror layout that the web app
         // uses too (see scripts/mirror_hgt.py) — the "3" keeps the slot open
         // for a 1-arcsec hgt1-zst/ sibling. hgt-zst/ is the legacy name.
-        const std::string name = std::format("N{:02}E{:03}.hgt", lat, lon);
+        // tile is named by its floored SW corner: lat -34 -> S34 (covers -34..-33)
+        const std::string name = std::format("{}{:02}{}{:03}.hgt",
+                                             lat < 0 ? 'S' : 'N', std::abs(lat),
+                                             lon < 0 ? 'W' : 'E', std::abs(lon));
         const std::filesystem::path rawPath = tileDir / name;
         std::filesystem::path zstPath = tileDir / "hgt3-zst" / (name + ".zst");
         if (!std::filesystem::exists(zstPath))

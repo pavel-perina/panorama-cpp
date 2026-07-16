@@ -7,8 +7,9 @@
 
 namespace pano {
 
-// Integer-degree bounding box of SRTM tiles, north-eastern hemisphere only
-// (same limitation as the Julia/Rust versions).
+// Integer-degree bounding box of SRTM tiles. Corners are floored degrees
+// (SRTM convention: a tile is named by its SW corner, so S34 covers
+// -34..-33); negative values (S/W hemispheres) work throughout.
 struct LatLonRange {
     int minLat = 0, minLon = 0; // south-west corner tile
     int maxLat = 0, maxLon = 0; // north-east corner tile (inclusive)
@@ -34,7 +35,8 @@ public:
     // walls (the Rust version had this artifact).
     void addTileRaw(int lat, int lon, const int16_t *bigEndianData);
 
-    // Loads and stitches all tiles in `range` from `tileDir` (N%02dE%03d.hgt).
+    // Loads and stitches all tiles in `range` from `tileDir` (N49E015.hgt /
+    // S34W071.hgt naming).
     // Throws std::runtime_error on missing/short files.
     static HeightMap load(const LatLonRange &range, const std::filesystem::path &tileDir);
 

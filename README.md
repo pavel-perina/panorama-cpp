@@ -26,7 +26,9 @@ current directory: `dist_map.png` (16-bit distances), `outlines.png`,
 Tiles are read from `hgt3-zst/N49E015.hgt.zst` (the 3-arcsec mirror layout;
 `hgt-zst/` is accepted as the legacy name) with plain `N49E015.hgt.zst` /
 `N49E015.hgt` in the data dir as fallbacks (vendored zstd decoder,
-`src/3rd_party/zstd/`).
+`src/3rd_party/zstd/`). All four hemispheres work — southern/western tiles
+use SRTM's `S34W071.hgt` naming (floored SW corner). Not handled:
+antimeridian-crossing scenes and sub-sea-level terrain (clamped to 0 m).
 
 ## Web app (WASM)
 

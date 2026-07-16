@@ -36,7 +36,9 @@ The node test needs `dist_native.bin`: run `./build/panorama`, then
 - Tile sources in priority order: `<dir>/hgt3-zst/N49E015.hgt.zst`,
   `<dir>/hgt-zst/…` (legacy name), `<dir>/N49E015.hgt.zst`,
   `<dir>/N49E015.hgt` (web app: same order). `hgt1-zst/` is reserved for
-  1-arcsec tiles (print mode). Only N/E quadrant is supported.
+  1-arcsec tiles (print mode). All hemispheres work (S/W tiles like
+  `S34W071.hgt`, named by the floored SW corner); antimeridian scenes and
+  sub-sea-level terrain (clamped to 0) don't.
 
 ## Conventions
 

@@ -24,17 +24,23 @@ const SCENE = {
   distMaxM: num("dist", 250) * 1000,
 };
 
-// Integer-degree tile range covering distMaxM around the eye (N/E quadrant).
+// Integer-degree tile range covering distMaxM around the eye.
 function tileRange() {
   const km = SCENE.distMaxM / 1000;
   const dLat = km / 111.2;
   const dLon = km / (111.2 * Math.cos(SCENE.eye.lat * Math.PI / 180));
   return {
-    minLat: Math.max(0, Math.floor(SCENE.eye.lat - dLat)),
+    minLat: Math.floor(SCENE.eye.lat - dLat),
     maxLat: Math.floor(SCENE.eye.lat + dLat),
-    minLon: Math.max(0, Math.floor(SCENE.eye.lon - dLon)),
+    minLon: Math.floor(SCENE.eye.lon - dLon),
     maxLon: Math.floor(SCENE.eye.lon + dLon),
   };
+}
+
+// SRTM tile name from its floored SW corner: lat -34, lon -71 -> S34W071.
+function tileName(lat, lon) {
+  return (lat < 0 ? "S" : "N") + String(Math.abs(lat)).padStart(2, "0") +
+         (lon < 0 ? "W" : "E") + String(Math.abs(lon)).padStart(3, "0") + ".hgt";
 }
 
 function syncUrl() {
@@ -226,7 +232,7 @@ async function main() {
       tiles.push([lat, lon]);
   let loaded = 0;
   for (const [lat, lon] of tiles) {
-    const name = `N${String(lat).padStart(2, "0")}E${String(lon).padStart(3, "0")}.hgt`;
+    const name = tileName(lat, lon);
     // zstd mirror is the primary source (3x smaller); hgt-zst is the legacy
     // mirror name, raw .hgt the last fallback
     let src = `hgt3-zst/${name}.zst`;
