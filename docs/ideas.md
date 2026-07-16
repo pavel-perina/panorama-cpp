@@ -174,9 +174,9 @@ if offline tile pre-caching for hiking becomes real.
 
 ## Interactive desktop app (ImGui/SDL3 lab first, Qt/QML if it becomes a product)
 
-The core (heightmap/distmap/summits) has no UI dependencies — OpenCV only
-touches main.cpp/annotate.cpp, and the WASM build proves the core drives
-fine through a thin interface. Either shell is a day of plumbing.
+The core (heightmap/distmap/summits/tonemap) has no UI dependencies, and
+the WASM build proves the core drives fine through a thin interface.
+Either shell is a day of plumbing.
 
 - **ImGui + SDL3** = interactive lab: live sliders (visibility re-tonemap,
   refraction re-raycast), hover readout of distance/azimuth from the
@@ -195,6 +195,27 @@ viewport is ~18 % of the 10 472-column full strip → ~27 ms native, i.e.
 real-time pan at 1080p and still a fraction of the strip at 4K.
 Speculatively render a margin around the viewport (grayscale distance
 data is cheap) and re-render outward on idle.
+
+### Where the CLI stops (2026-07-16)
+
+`panorama_photo.png` gained `-l/-fg/-bg` (commit 3d54aef). The natural
+next asks — label color, label halo/outline (toggle + color), scene from
+the command line (lat/lon, azimuth window, elevation window, distance) —
+are each trivial, but ten flags deep the CLI re-invents a config file
+badly. Boundary that seems right:
+
+- **Style knobs** (label color, halo): one annotation-style struct shared
+  by the print and photo outputs, sane defaults, expose only what a print
+  run actually varies. Halo/outline doubles as the legibility fix for
+  blue-on-sky labels, so it pulls its weight.
+- **Scene definition**: instead of one flag per parameter, accept the web
+  app's own URL query syntax — `panorama --scene
+  'lat=49.60&lon=16.16&az=30&dist=250'` (or a pasted full URL). One
+  parser, zero new conventions, and it enables the real workflow: find
+  the view on the phone, share the URL, print it from the desktop at
+  0.1 mrad. A scene *file* is then just that string in a text file.
+- **Feedback loops** (tuning colors, hunting azimuths) are the ImGui lab
+  / web app's job — more flags can't compete with a slider, so don't try.
 
 ## Sector cache + speculative rendering (web/PWA)
 
