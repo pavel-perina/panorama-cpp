@@ -1,6 +1,7 @@
 #pragma once
 // SRTM3 .hgt tile loading and the merged heightmap grid.
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <vector>
@@ -69,6 +70,21 @@ public:
         const int c = std::min(int(std::max(x + 0.5, 0.0)), m_width - 1);
         const int r = std::min(int(std::max(y + 0.5, 0.0)), m_height - 1);
         return m_data[size_t(r) * m_width + c];
+    }
+
+    // Bilinear sample, clamped: the 90 m posts become slopes, which removes
+    // the staircase silhouette on near ridges (View::bilinear).
+    double atGridBilinear(double x, double y) const
+    {
+        const double cx = std::clamp(x, 0.0, double(m_width - 1));
+        const double cy = std::clamp(y, 0.0, double(m_height - 1));
+        const int c = std::min(int(cx), m_width - 2);
+        const int r = std::min(int(cy), m_height - 2);
+        const double fx = cx - c, fy = cy - r;
+        const uint16_t *p = &m_data[size_t(r) * m_width + c];
+        const double top = p[0] + (p[1] - p[0]) * fx;
+        const double bot = p[m_width] + (p[m_width + 1] - p[m_width]) * fx;
+        return top + (bot - top) * fy;
     }
 
 private:

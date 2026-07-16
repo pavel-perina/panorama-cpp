@@ -38,7 +38,12 @@ void transpose(const std::vector<uint16_t> &src, std::vector<uint16_t> &dst, int
 
 } // namespace
 
-std::vector<uint16_t> makeDistMap(const View &view, const HeightMap &heightMap)
+namespace {
+
+// Templated on the sampling mode so the nearest-neighbor path (the
+// parity-tested reference) keeps its exact codegen; <true> interpolates.
+template <bool Bilinear>
+std::vector<uint16_t> makeDistMapImpl(const View &view, const HeightMap &heightMap)
 {
     const Vec3 refPoint = view.earth.lleToXyz(view.eye);
     const double localEarthRadius = refPoint.norm();
@@ -96,7 +101,11 @@ std::vector<uint16_t> makeDistMap(const View &view, const HeightMap &heightMap)
             const double dist = i * view.distStepM;
             const PositionLLE lle = view.earth.xyzToLle(refPoint + dist * direction);
             const double raycastHeight = h0 + sinElevation * dist;
-            const double terrainHeight = earthCurve[i] + heightMap.at(lle.lat, lle.lon);
+            double gx, gy;
+            heightMap.gridCoords(lle.lat, lle.lon, gx, gy);
+            const double sample = Bilinear ? heightMap.atGridBilinear(gx, gy)
+                                           : double(heightMap.atGrid(gx, gy));
+            const double terrainHeight = earthCurve[i] + sample;
             if (terrainHeight > raycastHeight && onHit(i, terrainHeight))
                 break;
         }
@@ -122,7 +131,9 @@ std::vector<uint16_t> makeDistMap(const View &view, const HeightMap &heightMap)
                 gx += dgx;
                 gy += dgy;
                 const double raycastHeight = h0 + sinElevation * (i * view.distStepM);
-                const double terrainHeight = earthCurve[i] + heightMap.atGrid(gx, gy);
+                const double sample = Bilinear ? heightMap.atGridBilinear(gx, gy)
+                                               : double(heightMap.atGrid(gx, gy));
+                const double terrainHeight = earthCurve[i] + sample;
                 if (terrainHeight > raycastHeight && onHit(i, terrainHeight)) {
                     done = true;
                     break;
@@ -141,6 +152,14 @@ std::vector<uint16_t> makeDistMap(const View &view, const HeightMap &heightMap)
     std::vector<uint16_t> output(view.arraySize());
     transpose(colMajor, output, width, height);
     return output;
+}
+
+} // namespace
+
+std::vector<uint16_t> makeDistMap(const View &view, const HeightMap &heightMap)
+{
+    return view.bilinear ? makeDistMapImpl<true>(view, heightMap)
+                         : makeDistMapImpl<false>(view, heightMap);
 }
 
 std::vector<uint8_t> extractOutlines(const View &view, const std::vector<uint16_t> &distMap)

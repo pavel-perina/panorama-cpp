@@ -22,6 +22,11 @@ struct View {
 
     double refractionCoef = 1.0; // apparent Earth radius multiplier
 
+    // Bilinear heightmap sampling: smooths the 90 m posts into slopes,
+    // removing the staircase on near ridges. Off by default — nearest
+    // sampling is the parity-tested reference the web app renders.
+    bool bilinear = false;
+
     int outWidth = 0;
     int outHeight = 0;
 
@@ -30,11 +35,12 @@ struct View {
 
     View(const SphereEarth &earthModel, const PositionLLE &eyePos,
          double azMinR, double azMaxR, double elMinR, double elMaxR,
-         double angStepR, double distMax, double refraction)
+         double angStepR, double distMax, double refraction,
+         bool bilinearSampling = false)
         : earth(earthModel), eye(eyePos),
           azimuthMinR(azMinR), azimuthMaxR(azMaxR),
           elevationMinR(elMinR), elevationMaxR(elMaxR), angularStepR(angStepR),
-          distMaxM(distMax), refractionCoef(refraction)
+          distMaxM(distMax), refractionCoef(refraction), bilinear(bilinearSampling)
     {
         if (azimuthMinR > azimuthMaxR)
             azimuthMinR -= 2.0 * kPi; // e.g. 350°..10° becomes -10°..10°

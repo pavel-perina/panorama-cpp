@@ -30,6 +30,7 @@ double secondsSince(std::chrono::steady_clock::time_point start)
 struct Options {
     std::filesystem::path dataDir = "data";
     bool label = false;                 // annotate the photo rendering
+    bool bilinear = false;              // bilinear heightmap sampling
     Rgb8 terrain{50, 65, 0};            // near-terrain color, matches web default
     Rgb8 sky{149, 195, 233};            // sky/airlight color, matches web default
 };
@@ -54,6 +55,8 @@ Rgb8 parseHexColor(std::string_view s)
                  "Usage: panorama [options] [dataDir]\n"
                  "  -l,  --label             annotate panorama_photo.png (summit labels,\n"
                  "                           azimuth ruler, horizon line)\n"
+                 "  -b,  --bilinear          bilinear heightmap sampling (smooth near\n"
+                 "                           ridges; nearest sampling is the default)\n"
                  "  -fg, --foreground-color  photo near-terrain color, hex RRGGBB (default 324100)\n"
                  "  -bg, --background-color  photo sky color, hex RRGGBB (default 95c3e9)\n"
                  "Scene (viewpoint, azimuth window, distance) is hardcoded in src/main.cpp.");
@@ -74,6 +77,8 @@ Options parseOptions(int argc, char **argv)
         };
         if (arg == "-l" || arg == "--label")
             opt.label = true;
+        else if (arg == "-b" || arg == "--bilinear")
+            opt.bilinear = true;
         else if (arg == "-fg" || arg == "--foreground-color")
             opt.terrain = parseHexColor(value());
         else if (arg == "-bg" || arg == "--background-color")
@@ -116,7 +121,8 @@ int main(int argc, char **argv)
                         toRadians(0.0), toRadians(60.0), // azimuth window
                         -0.0560, 0.0339,                   // elevation window [rad]
                         0.0001,                            // 0.1 mrad per pixel
-                        250.0e3, 1.18);                    // max distance, refraction
+                        250.0e3, 1.18,                     // max distance, refraction
+                        opt.bilinear);
 #endif
         t0 = std::chrono::steady_clock::now();
         const std::vector<uint16_t> distMap = makeDistMap(view, heightMap);

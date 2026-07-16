@@ -349,7 +349,21 @@ Use case: viewpoints that have a book/board already — leave a better one.
   `lerp(shade, sky, 1−exp(−3.912 d/V))` with visibility V as parameter.
 - Refraction coefficient as CLI parameter (1.18 = inversion day fit;
   summer ~1.10–1.14).
-- Bilinear heightmap sampling.
+- ~~Bilinear heightmap sampling~~ done: `-b/--bilinear` (native CLI);
+  web default flip pending a phone A/B — regenerating dist_native.bin +
+  the tonemap hash is the deliberate act that flips it.
+- **Sky gradient (2-stop OkLab, hue shift not just lightness).** Firewatch
+  reference: teal zenith → pale warm haze at the horizon; the flat sky
+  slab is the biggest visual gap vs. that look. One lerp in the tonemap.
+- **Warm-near / cool-far palette preset.** Painter's rule: near terrain
+  warm (ochre), all distance cues cool. Pure -fg/-bg + sky-gradient
+  values, no algorithm change — candidate default for the photo style.
+- **Auto elevation window.** Fixed elMax (+1.9°) clips nearby higher
+  hills (valley viewpoints, big neighbors). Probe max elevation angle in
+  a near-field ring of atGrid samples before rendering, set elMax with
+  margin. Web: boot-time decision — all sectors must share one height.
+- Horizon line: useful instrumentation on summits, visual noise on the
+  plain photo — draw it only with -l / in the web app.
 - Scene parameters from config file / CLI instead of #if 0 blocks in main.
 - ~~UTF-8 labels~~ done: SDF font atlas (scripts/bake_font_sdf.py +
   src/sdftext.cpp); on web, Canvas2D fillText.

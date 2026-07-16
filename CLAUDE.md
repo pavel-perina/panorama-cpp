@@ -10,7 +10,7 @@ docs/mobile-app-plan.md and docs/ideas.md for direction.
 
 ```sh
 cmake -B build -S . && cmake --build build -j          # native
-./build/panorama [-l] [-fg RRGGBB] [-bg RRGGBB] [dataDir=data]  # scene hardcoded in src/main.cpp
+./build/panorama [-l] [-b] [-fg RRGGBB] [-bg RRGGBB] [dataDir=data]  # scene hardcoded in src/main.cpp
 
 source ~/emsdk/emsdk_env.sh
 emcmake cmake -B build-wasm -S . && cmake --build build-wasm -j   # WASM
@@ -35,7 +35,8 @@ The node test needs `dist_native.bin`: run `./build/panorama`, then
   exact path for A/B comparison.
 - Heightmap sampling **rounds** (deliberate break from Julia/Rust originals,
   which truncate — see commit f8b3bdf). Old reference images are offset by
-  half a cell.
+  half a cell. `-b/--bilinear` (native CLI) switches the raycast to bilinear
+  sampling; the parity-tested reference and the web app stay nearest.
 - Tile sources in priority order: `<dir>/hgt3-zst/N49E015.hgt.zst`,
   `<dir>/hgt-zst/…` (legacy name), `<dir>/N49E015.hgt.zst`,
   `<dir>/N49E015.hgt` (web app: same order). `hgt1-zst/` is reserved for

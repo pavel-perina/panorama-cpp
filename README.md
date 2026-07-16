@@ -27,6 +27,9 @@ the same aerial-perspective tonemap as the web app, byte-identical pixels
 `-l/--label` draws the summit labels + azimuth ruler on it,
 `-fg/--foreground-color` and `-bg/--background-color` set the terrain and
 sky colors (hex `RRGGBB`, defaults match the web palette).
+`-b/--bilinear` switches the raycast to bilinear heightmap sampling —
+near ridges become smooth slopes instead of 90 m stairs (nearest sampling
+stays the default: it is the bit-parity reference the web app renders).
 
 Tiles are read from `hgt3-zst/N49E015.hgt.zst` (the 3-arcsec mirror layout;
 `hgt-zst/` is accepted as the legacy name) with plain `N49E015.hgt.zst` /
