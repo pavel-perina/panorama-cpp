@@ -20,7 +20,7 @@ node web/test-node.mjs         # regression: WASM vs native must be 0 px diff
 ```
 
 The node test needs `dist_native.bin`: run `./build/panorama`, then
-`python3 -c "import cv2; cv2.imread('dist_map.png',-1).tofile('dist_native.bin')"`.
+`uv run scripts/dump_dist_native.py`.
 
 ## Invariants — do not break casually
 

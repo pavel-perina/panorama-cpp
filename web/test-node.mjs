@@ -1,6 +1,6 @@
 // Smoke test: render the Kamenice scene in the WASM module under Node and
 // compare against the native renderer's output (dumped as raw uint16 LE).
-//   python3 -c "import cv2; cv2.imread('dist_map.png',-1).tofile('dist_native.bin')"
+//   ./build/panorama && uv run scripts/dump_dist_native.py
 //   ~/emsdk/node/22.16.0_64bit/bin/node web/test-node.mjs
 import { createRequire } from "node:module";
 import { readFileSync, existsSync } from "node:fs";

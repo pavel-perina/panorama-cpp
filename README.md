@@ -79,6 +79,7 @@ the script location, so they work from any CWD). Summary:
 | `download_osm_peaks.py` | archival crawl of **all Europe** OSM peaks, raw JSON per 1×1° cell + offline merge step | `data/osm-peaks/*.json.zst`, `data/peaks-europe.tsv` |
 | `extract_geofabrik_peaks.py` | offline peak extraction from manually downloaded Geofabrik country PBFs | `data/geofabrik-peaks/*-peaks.json.zst`, `data/peaks-geofabrik.tsv` |
 | `build_peaks_db.py` | peak rating stage 1: match OSM peaks against the `prominence` tool's sweep | `data/peaks-rated.tsv`, `data/peaks-rejected.tsv` |
+| `dump_dist_native.py` | dist_map.png → raw uint16 reference for `web/test-node.mjs` | `dist_native.bin` (CWD) |
 
 The two `*_hgt` and the two `*_osm_*` scripts intentionally overlap: the
 short ones serve the renderer today, the archive ones hedge against data
