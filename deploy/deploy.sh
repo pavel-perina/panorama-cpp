@@ -33,9 +33,11 @@ echo "conf + app deployed"
 
 if [ "${1:-}" = "data" ]; then
     data=$(vol panorama-data)
-    # Only what the web app fetches; fonts/ and the raw pipeline outputs are
-    # native-side. No --delete: extra tiles dropped in by hand stay.
+    # Only what the web app fetches; raw pipeline outputs and the SDF font
+    # atlas are native-side. No --delete: extra tiles dropped in by hand stay.
     rsync -a --info=stats1 "$repo/data/hgt3-zst" "$data/"
     rsync -a "$repo/data/peaks-rated.tsv" "$repo/data/summits.tsv" "$data/"
+    rsync -a --include='*.woff2' --include='Inter-LICENSE.txt' --exclude='*' \
+        "$repo/data/fonts/" "$data/fonts/"
     echo "data deployed"
 fi

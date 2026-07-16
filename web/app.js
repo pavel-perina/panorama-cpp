@@ -112,7 +112,7 @@ function drawOverlay() {
   const toX = (x) => (x - offsetX) * zoom;
   const toY = (y) => (y - offsetY) * zoom;
   const c = ctx;
-  c.font = "14px 'Fira Sans', sans-serif";
+  c.font = "14px Inter, sans-serif";
   c.lineWidth = 1;
   c.textAlign = "left";
 
@@ -196,6 +196,8 @@ async function render() {
 }
 
 async function main() {
+  // canvas fillText won't fetch @font-face fonts on its own; load explicitly
+  const fontReady = document.fonts.load("14px Inter").catch(() => {});
   wasm = await createPanoModule();
   api = {
     reset: wasm.cwrap("pano_reset", null, ["number", "number", "number", "number"]),
@@ -277,6 +279,7 @@ async function main() {
   refr.addEventListener("change", render); // on release, ~1 s
 
   setupControls();
+  await fontReady;
   await render();
 }
 
@@ -399,6 +402,10 @@ function setupControls() {
   for (const [name, az] of [["N", 0], ["NE", 45], ["E", 90], ["SE", 135],
                             ["S", 180], ["SW", 225], ["W", 270], ["NW", 315]])
     mk(name, `look ${name} (az ${az}°)`, () => setSector(az));
+
+  const about = document.getElementById("about");
+  about.addEventListener("click", (e) => { if (e.target === about) about.close(); });
+  mk("ⓘ", "about & data credits", () => about.showModal());
 }
 
 // --- pan (drag / arrows) and zoom (wheel / pinch) ---------------------------

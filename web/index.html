@@ -3,23 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>panorama-cpp web</title>
+<title>Obzor</title>
 <style>
+  @font-face {
+    font-family: 'Inter'; font-style: normal; font-weight: 400;
+    src: url(../data/fonts/Inter-Regular.woff2) format('woff2');
+  }
   html, body { margin: 0; height: 100%; overflow: hidden;
                background: #002b36; color: #839496;
-               font: 14px/1.4 system-ui, sans-serif; }
+               font: 14px/1.4 Inter, system-ui, sans-serif; }
   #bar { padding: 6px 10px; }
   #view { display: block; touch-action: none; cursor: grab;
           image-rendering: pixelated; }
   #dirs button { background: #073642; color: #93a1a1; border: 1px solid #586e75;
                  border-radius: 3px; margin: 0 1px; padding: 2px 7px;
                  font: inherit; cursor: pointer; }
+  #about { background: #073642; color: #93a1a1; border: 1px solid #586e75;
+           border-radius: 5px; padding: 14px 18px; max-width: 26em;
+           font: inherit; }
+  #about::backdrop { background: rgba(0, 43, 54, 0.7); }
+  #about h3 { margin: 0 0 8px; color: #93a1a1; }
+  #about p { margin: 6px 0; }
+  #about a { color: #268bd2; }
+  #about button { float: right; background: #073642; color: #93a1a1;
+                  border: 1px solid #586e75; border-radius: 3px;
+                  padding: 2px 10px; font: inherit; cursor: pointer; }
 </style>
 </head>
 <body>
 <div id="bar">
   <span id="dirs"></span>
-  <span id="status">panorama-cpp — loading…</span>
+  <span id="status">Obzor — loading…</span>
   <label id="visctl" style="float:right; display:none">
     visibility <input id="vis" type="range" min="10" max="300" step="5" value="100"
                       style="vertical-align:middle"> <span id="visval">100 km</span>
@@ -30,6 +44,19 @@
   </label>
 </div>
 <canvas id="view"></canvas>
+<dialog id="about">
+  <h3>Obzor</h3>
+  <p>Terrain panorama with summit annotations: raycast distance map from
+     SRTM heightmaps.</p>
+  <p>Engine: panorama-cpp (C++ → WebAssembly), MIT license.</p>
+  <p>Elevation data: NASA SRTM (public domain), void-filled 3″ versions by
+     <a href="https://viewfinderpanoramas.org" target="_blank" rel="noopener">Jonathan de Ferranti</a>.</p>
+  <p>Peak data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+     contributors, ODbL.</p>
+  <p>Inter typeface © Rasmus Andersson, SIL OFL 1.1.</p>
+  <p>Zstandard decoder © Meta Platforms, BSD.</p>
+  <button onclick="this.closest('dialog').close()">close</button>
+</dialog>
 <script src="../build-wasm/pano.js"></script>
 <script src="app.js"></script>
 </body>
