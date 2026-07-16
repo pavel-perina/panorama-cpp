@@ -10,7 +10,7 @@ docs/mobile-app-plan.md and docs/ideas.md for direction.
 
 ```sh
 cmake -B build -S . && cmake --build build -j          # native
-./build/panorama [dataDir=data]                        # scene hardcoded in src/main.cpp
+./build/panorama [-l] [-fg RRGGBB] [-bg RRGGBB] [dataDir=data]  # scene hardcoded in src/main.cpp
 
 source ~/emsdk/emsdk_env.sh
 emcmake cmake -B build-wasm -S . && cmake --build build-wasm -j   # WASM
@@ -27,6 +27,9 @@ The node test needs `dist_native.bin`: run `./build/panorama`, then
 - **Native and WASM renders are bit-identical.** That's why native builds
   with `-ffp-contract=off` (FMA flips cell truncations). After any renderer
   change: rebuild both, regenerate `dist_native.bin`, node test must pass.
+  This extends to the shared tonemap (`src/tonemap.cpp`): the node test pins
+  an FNV-1a hash of its RGB output — update the hash only on a deliberate
+  palette/tonemap change.
 - Ray loop uses grid-coordinate interpolation between exact checkpoints
   every 5 km (error s²/8R ≈ 0.5 m). `-DPANO_EXACT_RAYCAST=ON` builds the
   exact path for A/B comparison.

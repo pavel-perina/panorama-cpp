@@ -2,9 +2,12 @@
 // Renders a terrain distance map from SRTM heightmaps, extracts outlines and
 // annotates visible summits. Scene defaults match the originals (Praděd, CZ).
 
+#include <charconv>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <print>
+#include <string_view>
 
 #include "distmap.hpp"
 #include "geo.hpp"
@@ -12,6 +15,7 @@
 #include "pngwrite.hpp"
 #include "sdftext.hpp"
 #include "summits.hpp"
+#include "tonemap.hpp"
 #include "view.hpp"
 
 using namespace pano;
@@ -23,11 +27,71 @@ double secondsSince(std::chrono::steady_clock::time_point start)
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 }
 
+struct Options {
+    std::filesystem::path dataDir = "data";
+    bool label = false;                 // annotate the photo rendering
+    Rgb8 terrain{50, 65, 0};            // near-terrain color, matches web default
+    Rgb8 sky{149, 195, 233};            // sky/airlight color, matches web default
+};
+
+// "RRGGBB" or "#RRGGBB" -> Rgb8; exits with a message on malformed input.
+Rgb8 parseHexColor(std::string_view s)
+{
+    if (s.starts_with('#'))
+        s.remove_prefix(1);
+    unsigned v = 0;
+    const auto [end, ec] = std::from_chars(s.data(), s.data() + s.size(), v, 16);
+    if (ec != std::errc{} || end != s.data() + s.size() || s.size() != 6) {
+        std::println(stderr, "Bad color '{}': expected hex RRGGBB", s);
+        std::exit(1);
+    }
+    return {int(v >> 16), int(v >> 8 & 0xff), int(v & 0xff)};
+}
+
+[[noreturn]] void usage()
+{
+    std::println(stderr,
+                 "Usage: panorama [options] [dataDir]\n"
+                 "  -l,  --label             annotate panorama_photo.png (summit labels,\n"
+                 "                           azimuth ruler, horizon line)\n"
+                 "  -fg, --foreground-color  photo near-terrain color, hex RRGGBB (default 324100)\n"
+                 "  -bg, --background-color  photo sky color, hex RRGGBB (default 95c3e9)\n"
+                 "Scene (viewpoint, azimuth window, distance) is hardcoded in src/main.cpp.");
+    std::exit(1);
+}
+
+Options parseOptions(int argc, char **argv)
+{
+    Options opt;
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg = argv[i];
+        const auto value = [&]() -> std::string_view {
+            if (++i >= argc) {
+                std::println(stderr, "Missing value for {}", arg);
+                std::exit(1);
+            }
+            return argv[i];
+        };
+        if (arg == "-l" || arg == "--label")
+            opt.label = true;
+        else if (arg == "-fg" || arg == "--foreground-color")
+            opt.terrain = parseHexColor(value());
+        else if (arg == "-bg" || arg == "--background-color")
+            opt.sky = parseHexColor(value());
+        else if (arg.starts_with('-'))
+            usage();
+        else
+            opt.dataDir = arg;
+    }
+    return opt;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
 {
-    const std::filesystem::path dataDir = argc > 1 ? argv[1] : "data";
+    const Options opt = parseOptions(argc, argv);
+    const std::filesystem::path &dataDir = opt.dataDir;
 
     const LatLonRange range{.minLat = 47, .minLon = 15, .maxLat = 50, .maxLon = 21};
 #if 0
@@ -80,6 +144,18 @@ int main(int argc, char **argv)
             fontPath = "data/fonts/font-sdf.bin"; // dataDir may be the tile mirror
         const SdfFont font = SdfFont::load(fontPath);
         renderAnnotations(view, outlines, visible, font, "panorama.png");
+
+        // Photo-style rendering, same tonemap code and default palette as the
+        // web app (visibility slider default 100 km) — pixels match the page.
+        std::println("Saving panorama_photo.png{}", opt.label ? " (labeled)" : "");
+        const std::vector<uint8_t> rgba = tonemapDistMap(
+            view, distMap, 100.0, opt.terrain, opt.sky);
+        std::vector<uint8_t> rgb(view.arraySize() * 3);
+        for (size_t i = 0; i < view.arraySize(); ++i)
+            std::copy_n(&rgba[i * 4], 3, &rgb[i * 3]);
+        if (opt.label)
+            drawAnnotations(view, rgb.data(), visible, font);
+        writePng("panorama_photo.png", view.outWidth, view.outHeight, 3, 8, rgb.data());
     } catch (const std::exception &e) {
         std::println(stderr, "Error: {}", e.what());
         return 1;

@@ -24,17 +24,13 @@ constexpr double kTickSizePx = 13.0;
 
 } // namespace
 
-void renderAnnotations(const View &view,
-                       const std::vector<uint8_t> &outlines,
-                       const std::vector<VisibleSummit> &summits,
-                       const SdfFont &font,
-                       const std::filesystem::path &outputPath)
+void drawAnnotations(const View &view, uint8_t *rgb,
+                     const std::vector<VisibleSummit> &summits,
+                     const SdfFont &font)
 {
     const int width = view.outWidth;
     const int height = view.outHeight;
-    std::vector<uint8_t> img(size_t(width) * height * 3);
-    for (size_t i = 0; i < outlines.size(); ++i)
-        img[i * 3] = img[i * 3 + 1] = img[i * 3 + 2] = outlines[i];
+    uint8_t *img = rgb;
 
     const auto setPixel = [&](int x, int y, const uint8_t color[3]) {
         uint8_t *px = &img[(size_t(y) * width + x) * 3];
@@ -53,7 +49,7 @@ void renderAnnotations(const View &view,
         vLine(summit.x, std::min(summit.y, int(kLabelBaseY)),
               std::max(summit.y, int(kLabelBaseY)), kLineColor);
         const std::string label = std::format("{} ({:.0f} km)", summit.name, summit.distanceM / 1000.0);
-        font.drawText(img.data(), width, height, 3, label,
+        font.drawText(img, width, height, 3, label,
                       double(summit.x) + 5.0, kLabelBaseY - 5.0, kLabelSizePx, 45.0, kTextColor);
     }
 
@@ -65,7 +61,7 @@ void renderAnnotations(const View &view,
         vLine(x, 38, 42, kLineColor);
         vLine(x, 63, 68, kLineColor);
         const std::string label = std::format("{}°", az >= 0 ? az : az + 360);
-        font.drawText(img.data(), width, height, 3, label,
+        font.drawText(img, width, height, 3, label,
                       x - font.textWidth(label, kTickSizePx) / 2.0, 58.0,
                       kTickSizePx, 0.0, kTextColor);
     }
@@ -76,7 +72,19 @@ void renderAnnotations(const View &view,
         for (int x = 0; x < width; ++x)
             setPixel(x, horizonY, kHorizonColor);
 
-    writePng(outputPath, width, height, 3, 8, img.data());
+}
+
+void renderAnnotations(const View &view,
+                       const std::vector<uint8_t> &outlines,
+                       const std::vector<VisibleSummit> &summits,
+                       const SdfFont &font,
+                       const std::filesystem::path &outputPath)
+{
+    std::vector<uint8_t> img(size_t(view.outWidth) * view.outHeight * 3);
+    for (size_t i = 0; i < outlines.size(); ++i)
+        img[i * 3] = img[i * 3 + 1] = img[i * 3 + 2] = outlines[i];
+    drawAnnotations(view, img.data(), summits, font);
+    writePng(outputPath, view.outWidth, view.outHeight, 3, 8, img.data());
 }
 
 } // namespace pano

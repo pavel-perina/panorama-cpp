@@ -24,6 +24,7 @@ if(EMSCRIPTEN)
         src/heightmap.cpp
         src/distmap.cpp
         src/summits.cpp
+        src/tonemap.cpp
         src/common/colors.cpp
         src/3rd_party/zstd/zstddeclib.c
     )
@@ -54,6 +55,7 @@ else()
         src/annotate.cpp
         src/sdftext.cpp
         src/pngwrite.cpp
+        src/tonemap.cpp
         src/common/colors.cpp
         src/3rd_party/zstd/zstddeclib.c
     )

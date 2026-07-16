@@ -29,6 +29,8 @@ const api = {
   height: Module.cwrap("pano_height", "number", []),
   // heap pointer, not cwrap "string": the TSV can exceed the 1 MB WASM stack
   summits: Module.cwrap("pano_summits", "string", ["number"]),
+  tonemap: Module.cwrap("pano_tonemap", "number",
+    ["number", "number", "number", "number", "number", "number", "number"]),
 };
 
 const r = SCENE.range;
@@ -82,6 +84,27 @@ const visible = JSON.parse(api.summits(tsvPtr));
 Module._free(tsvPtr);
 console.log(`visible summits: ${visible.length}, nearest: ` +
   visible.slice().sort((a, b) => a.distanceM - b.distanceM)[0]?.name);
+
+// Tonemap regression: shared src/tonemap.cpp must keep producing the same
+// pixels (web default palette, visibility 100 km). FNV-1a over RGB; update
+// the expected hash only on a deliberate palette/tonemap change.
+{
+  const rgbaPtr = api.tonemap(100.0, 50, 65, 0, 149, 195, 233);
+  const rgba = Module.HEAPU8.subarray(rgbaPtr, rgbaPtr + w * h * 4);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < rgba.length; i += 4)
+    for (let c = 0; c < 3; ++c) {
+      hash ^= rgba[i + c];
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+  const expected = "4f1ba3c4"; // == native panorama_photo.png (verified 2026-07-16)
+  const got = hash.toString(16).padStart(8, "0");
+  console.log(`tonemap rgb hash: ${got} (expected ${expected})`);
+  if (got !== expected) {
+    console.error("TONEMAP HASH MISMATCH");
+    process.exit(1);
+  }
+}
 
 const refPath = new URL("../dist_native.bin", import.meta.url);
 if (existsSync(refPath)) {

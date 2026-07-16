@@ -21,7 +21,12 @@ cmake --build build -j
 Scene parameters (viewpoint, azimuth/elevation window, resolution, max
 distance, refraction) are hardcoded in `src/main.cpp`. Outputs to the
 current directory: `dist_map.png` (16-bit distances), `outlines.png`,
-`panorama.png` (annotated).
+`panorama.png` (annotated, printer-friendly) and `panorama_photo.png` —
+the same aerial-perspective tonemap as the web app, byte-identical pixels
+(guarded by the hash check in `web/test-node.mjs`). Photo options:
+`-l/--label` draws the summit labels + azimuth ruler on it,
+`-fg/--foreground-color` and `-bg/--background-color` set the terrain and
+sky colors (hex `RRGGBB`, defaults match the web palette).
 
 Tiles are read from `hgt3-zst/N49E015.hgt.zst` (the 3-arcsec mirror layout;
 `hgt-zst/` is accepted as the legacy name) with plain `N49E015.hgt.zst` /
