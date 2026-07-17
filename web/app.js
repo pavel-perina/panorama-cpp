@@ -128,8 +128,11 @@ function draw() {
   offsetY = Math.max(0, Math.min(offsetY, stripH - vh / zoom));
 
   ctx.imageSmoothingEnabled = zoom < 1; // smooth zoomed out, crisp pixels zoomed in
-  ctx.fillStyle = `rgb(${SKY[0]},${SKY[1]},${SKY[2]})`; // placeholder for unrendered sectors
+  // page background below the strip (tall windows), sky placeholder within it
+  ctx.fillStyle = "#002b36";
   ctx.fillRect(0, 0, vw, vh);
+  ctx.fillStyle = `rgb(${SKY[0]},${SKY[1]},${SKY[2]})`; // placeholder for unrendered sectors
+  ctx.fillRect(0, 0, vw, Math.min(vh, (stripH - offsetY) * zoom));
   let missing = false;
   for (const k of visibleKs()) {
     const s = sectors.get(mod12(k));
@@ -154,8 +157,13 @@ function drawOverlay() {
   c.lineWidth = 1;
   c.textAlign = "left";
 
-  // summits from all visible sectors, most prominent first, greedy 20 px
-  // screen-space spacing prunes crowding when zoomed out
+  // Summit labels anchored to their own silhouette point, most prominent
+  // first. All labels share the -45° rotation, so collisions live in the
+  // rotated frame: p = x + y is the coordinate perpendicular to the text
+  // run, u = x - y the coordinate along it — two labels collide when their
+  // p bands are close AND their u intervals overlap. A colliding label is
+  // lifted up its stem (new p band) until it fits; stems grow only where
+  // it is actually crowded.
   const cand = [];
   for (const k of visibleKs()) {
     const s = sectors.get(mod12(k));
@@ -167,22 +175,46 @@ function drawOverlay() {
     }
   }
   cand.sort((a, b) => b.prom - a.prom);
-  const labelBaseY = toY(300);
-  const taken = [];
-  for (const p of cand) {
-    if (taken.some((t) => Math.abs(t - p.sx) < 20)) continue;
-    taken.push(p.sx);
-    c.strokeStyle = "#4d5a63";
+  const placed = []; // {p, u0, u1} of accepted labels, rotated coords
+  const labels = []; // accepted placements for the two draw passes
+  for (const s of cand) {
+    const text = `${s.name} (${Math.round(s.distanceM / 1000)} km)`;
+    const len = c.measureText(text).width + 12;
+    const anchorY = toY(s.y);
+    let labelY = null;
+    for (let lift = 18; lift <= 158; lift += 20) {
+      const y = anchorY - lift;
+      if (y < 44) break; // keep clear of the azimuth ruler
+      const p = s.sx + y;
+      const u0 = s.sx - y, u1 = u0 + len * 1.42; // len px along the -45° run
+      if (!placed.some((o) => Math.abs(o.p - p) < 26 && u0 < o.u1 && o.u0 < u1)) {
+        labelY = y;
+        placed.push({ p, u0, u1 });
+        break;
+      }
+    }
+    if (labelY !== null) labels.push({ sx: s.sx, anchorY, labelY, text });
+  }
+  // two passes: stems first, texts (with halo) on top — a stem crossing a
+  // neighbor's text run disappears under its halo instead of striking it out
+  c.strokeStyle = "rgba(30, 50, 60, 0.45)";
+  for (const l of labels) {
     c.beginPath();
-    c.moveTo(Math.round(p.sx) + 0.5, toY(p.y));
-    c.lineTo(Math.round(p.sx) + 0.5, labelBaseY);
+    c.moveTo(Math.round(l.sx) + 0.5, l.anchorY);
+    c.lineTo(Math.round(l.sx) + 0.5, l.labelY);
     c.stroke();
-    c.fillStyle = "#0b4d7a";
+  }
+  for (const l of labels) {
     c.save();
-    c.translate(p.sx + 5, labelBaseY - 5);
+    c.translate(l.sx + 4, l.labelY - 3);
     c.rotate(-Math.PI / 4);
-    c.fillText(`${p.name} (${Math.round(p.distanceM / 1000)} km)`, 0, 0);
+    c.lineWidth = 3;
+    c.strokeStyle = "rgba(255, 255, 255, 0.75)"; // halo: readable over terrain
+    c.strokeText(l.text, 0, 0);
+    c.fillStyle = "#0b4d7a";
+    c.fillText(l.text, 0, 0);
     c.restore();
+    c.lineWidth = 1;
   }
 
   // azimuth ruler pinned to the viewport top
@@ -204,7 +236,7 @@ function drawOverlay() {
   // reads as a crease in the image rather than a wire across it
   const hy = Math.round(toY(SCENE.elMaxRad / SCENE.stepRad)) + 0.5;
   if (hy > 0 && hy < canvas.height) {
-    c.strokeStyle = "rgba(0, 30, 45, 0.18)";
+    c.strokeStyle = "rgba(0, 30, 45, 0.10)";
     c.beginPath();
     c.moveTo(0, hy); c.lineTo(canvas.width, hy);
     c.stroke();

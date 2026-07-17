@@ -72,7 +72,7 @@ void drawAnnotations(const View &view, uint8_t *rgb,
         for (int x = 0; x < width; ++x) {
             uint8_t *px = &img[(size_t(horizonY) * width + x) * 3];
             for (int ch = 0; ch < 3; ++ch)
-                px[ch] = uint8_t(px[ch] * 0.85f);
+                px[ch] = uint8_t(px[ch] * 0.92f);
         }
 
 }
