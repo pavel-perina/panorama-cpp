@@ -115,7 +115,7 @@ function clampZoom(z) {
   return Math.max(min, Math.min(6, z));
 }
 
-const SKY = [149, 195, 233];    // airlight / sky color (light blue)
+const SKY = [149, 195, 233];    // zenith color; horizon fades to near-white in the tonemap
 const TERRAIN = [50, 65, 0];    // near-terrain color (khaki)
 
 function draw() {
@@ -200,10 +200,11 @@ function drawOverlay() {
   }
   c.textAlign = "left";
 
-  // horizon (eye-level) line
+  // horizon (eye-level) line: subtle darkening of what's underneath, so it
+  // reads as a crease in the image rather than a wire across it
   const hy = Math.round(toY(SCENE.elMaxRad / SCENE.stepRad)) + 0.5;
   if (hy > 0 && hy < canvas.height) {
-    c.strokeStyle = "#7d97a8";
+    c.strokeStyle = "rgba(0, 30, 45, 0.18)";
     c.beginPath();
     c.moveTo(0, hy); c.lineTo(canvas.width, hy);
     c.stroke();

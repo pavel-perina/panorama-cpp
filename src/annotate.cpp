@@ -17,7 +17,6 @@ namespace {
 // Solarized-ish palette used by the Julia version.
 constexpr uint8_t kLineColor[3] = {131, 148, 150};
 constexpr uint8_t kTextColor[3] = {38, 139, 210};
-constexpr uint8_t kHorizonColor[3] = {238, 232, 213};
 
 constexpr double kLabelSizePx = 16.0; // matches the web app's label font size
 constexpr double kTickSizePx = 13.0;
@@ -66,11 +65,15 @@ void drawAnnotations(const View &view, uint8_t *rgb,
                       kTickSizePx, 0.0, kTextColor);
     }
 
-    // Horizon line (elevation angle 0).
+    // Horizon line (elevation angle 0): darken the underlying pixels slightly
+    // instead of painting a color — subtle against sky and terrain alike.
     const int horizonY = int(std::lround(view.elevationMaxR / view.angularStepR));
     if (horizonY >= 0 && horizonY < height)
-        for (int x = 0; x < width; ++x)
-            setPixel(x, horizonY, kHorizonColor);
+        for (int x = 0; x < width; ++x) {
+            uint8_t *px = &img[(size_t(horizonY) * width + x) * 3];
+            for (int ch = 0; ch < 3; ++ch)
+                px[ch] = uint8_t(px[ch] * 0.85f);
+        }
 
 }
 
