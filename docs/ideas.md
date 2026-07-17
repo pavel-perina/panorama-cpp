@@ -341,6 +341,27 @@ supplies the depth.
 
 Use case: viewpoints that have a book/board already — leave a better one.
 
+## Magnetic declination (compass follow)
+
+Phone sensors report *magnetic* headings; no web API exposes true north
+(native Android/iOS get it in one call — browsers don't). Current
+limitation: a manual `decl=` URL offset, and a fixed value ≈ +5° is good
+enough for Europe in 2026 (drifts ~ +0.15°/yr).
+
+Rejected shortcut — bearing to the magnetic dip pole from the GPS fix:
+the needle follows local field lines, not great circles to the pole
+(field is only ~90 % dipole). Checked 2026-07: Prague +5.1° vs actual
++5° (lucky fluke), Tokyo −0.1° vs −8°, Seattle −6.1° vs +15°, Cape Town
++4.5° vs −26°. Same maintenance burden too — the dip pole moves
+~45 km/yr. And the app is useless outside Europe anyway until the summit
+DB covers it.
+
+Proper fix, later: vendor a WMM evaluation into app.js — the WMM2025
+coefficient table is ~6 kB (90 spherical-harmonic terms, valid to 2030),
+small enough to hardcode into the JS; declination from (lat, lon, date)
+computed once per GPS fix, `decl=` demoted to a manual override /
+calibration nudge.
+
 ## Renderer (carried over, see also mobile-app-plan.md)
 
 - Transcendental interpolation in ray loop (exact lat/lon every ~16th
