@@ -12,7 +12,7 @@
 // prefetches the neighbor sector in the direction of travel.
 //
 // Scene state lives in URL params (shareable):
-//   ?lat=&lon=&dh=&az=&ele=&dist=&decl=  (decl: magnetic declination in
+//   ?lat=&lon=&dh=&az=&ele=&dist=&vis=&decl=  (decl: magnetic declination in
 //   degrees, added to compass headings; ~+5 in Central Europe 2026)
 "use strict";
 
@@ -140,18 +140,27 @@ function draw() {
   // crisp pixels only when the effective scale is an integer; otherwise
   // smoothing avoids uneven pixel blocks (e.g. zoom 1 at 125% scaling)
   ctx.imageSmoothingEnabled = zoom < 1 || (zoom * dpr) % 1 !== 0;
-  // page background below the strip (tall windows), sky placeholder within it
+  // page background; the sky placeholder is painted only under sectors that
+  // are still missing — painting it under drawn ones leaks a light 1 px
+  // line through the antialiased bottom edge of the terrain image
   ctx.fillStyle = "#002b36";
   ctx.fillRect(0, 0, viewW, viewH);
-  ctx.fillStyle = `rgb(${SKY[0]},${SKY[1]},${SKY[2]})`; // placeholder for unrendered sectors
-  ctx.fillRect(0, 0, viewW, Math.min(viewH, (stripH - offsetY) * zoom));
   // never sample past the strip bottom: a source rect that overshoots the
-  // sector canvas blends in transparent pixels — a 1 px line at the bottom
+  // sector canvas blends in transparent pixels
   const srcH = Math.min(viewH / zoom, stripH - offsetY);
+  const stripBottom = Math.min(viewH, (stripH - offsetY) * zoom);
   let missing = false;
   for (const k of visibleKs()) {
     const s = sectors.get(mod12(k));
-    if (!s) { missing = true; continue; }
+    const x0 = (k * SECTOR_PX - offsetX) * zoom;
+    if (!s) {
+      ctx.fillStyle = `rgb(${SKY[0]},${SKY[1]},${SKY[2]})`;
+      ctx.fillRect(Math.max(0, x0), 0,
+                   Math.min(viewW, x0 + SECTOR_PX * zoom + 1) - Math.max(0, x0),
+                   stripBottom);
+      missing = true;
+      continue;
+    }
     s.stamp = ++stamp;
     ctx.drawImage(s.canvas,
                   offsetX - k * SECTOR_PX, offsetY, viewW / zoom, srcH,
@@ -355,6 +364,7 @@ function scheduleUrlSync() {
     p.set("lat", SCENE.eye.lat.toFixed(6));
     p.set("lon", SCENE.eye.lon.toFixed(6));
     p.set("az", Math.round(((center % 360) + 360) % 360));
+    if (ready) p.set("vis", visKm());
     history.replaceState(null, "", "?" + p);
   }, 800);
 }
@@ -445,6 +455,10 @@ async function main() {
   // distance, so it is a raycast parameter now, not only a tonemap one).
   const vis = document.getElementById("vis");
   const refr = document.getElementById("refr");
+  if (params.has("vis")) {
+    vis.value = params.get("vis");
+    document.getElementById("visval").textContent = `${vis.value} km`;
+  }
   document.getElementById("visctl").style.display = "";
   document.getElementById("refrctl").style.display = "";
   vis.addEventListener("input", () => {
