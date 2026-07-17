@@ -48,7 +48,10 @@ struct View {
             throw std::invalid_argument("Azimuth range exceeds 360 degrees");
 
         outWidth = int((azimuthMaxR - azimuthMinR) / angularStepR) + 2;
-        outHeight = int((elevationMaxR - elevationMinR) / angularStepR) + 2;
+        // +1 covers the elevation span inclusively; the former +2 left a
+        // bottom row below elevationMinR that no ray ever filled — a
+        // permanent 1 px sky-colored line under the terrain.
+        outHeight = int((elevationMaxR - elevationMinR) / angularStepR) + 1;
 
         const Vec3 refPoint = earth.lleToXyz(eye);
         const Vec3 vZ{0.0, 0.0, 1.0};

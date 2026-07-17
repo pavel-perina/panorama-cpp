@@ -97,7 +97,7 @@ console.log(`visible summits: ${visible.length}, nearest: ` +
       hash ^= rgba[i + c];
       hash = Math.imul(hash, 0x01000193) >>> 0;
     }
-  const expected = "a99171b9"; // == native panorama_photo.png (sky gradient, 2026-07-17)
+  const expected = "b175c596"; // == native panorama_photo.png (bottom-row fencepost fix, 2026-07-17)
   const got = hash.toString(16).padStart(8, "0");
   console.log(`tonemap rgb hash: ${got} (expected ${expected})`);
   if (got !== expected) {
