@@ -1,5 +1,7 @@
 // WASM renderer in the browser. JS owns all I/O: fetches tiles + summit
-// TSV, calls the WASM module, draws on canvas. Pan by drag/arrows, zoom by
+// TSV, calls the WASM module, draws on canvas. Overlay layers: summit
+// labels, azimuth ruler, sun marker + today's sunrise/set times (NOAA
+// solar position, flat-horizon times). Pan by drag/arrows, zoom by
 // wheel/pinch; visibility and refraction sliders re-render (render distance
 // is capped at 1.2x visibility — beyond that terrain is <2% contrast, i.e.
 // indistinguishable from sky, so the cap is lossless and ~halves the cost).
@@ -41,7 +43,7 @@ const SECTOR_DEG = 30;
 const SECTOR_PX = SECTOR_DEG / DEG_PER_PX;
 const MAX_SECTORS = 6;                 // LRU cap: ~28 MP of canvases, iOS-safe
 let stripH =                           // exact value confirmed from api.height()
-  Math.floor((SCENE.elMaxRad - SCENE.elMinRad) / SCENE.stepRad) + 2;
+  Math.floor((SCENE.elMaxRad - SCENE.elMinRad) / SCENE.stepRad) + 1;
 
 // Integer-degree tile range covering distMaxM around the eye.
 function tileRange() {
@@ -119,6 +121,74 @@ const SKY = [149, 195, 233];    // zenith color; horizon fades to near-white in 
 const TERRAIN = [50, 65, 0];    // near-terrain color (khaki)
 
 let viewW = 0, viewH = 0; // viewport size in CSS px (backing store is ×dpr)
+
+// --- sun position (NOAA solar calculator terms, ported from the
+// pico_weather_station sun_calc snippets; geometric elevation, no
+// atmospheric refraction — matters < 0.6° and only at the horizon) --------
+
+const toRad = (d) => d * Math.PI / 180;
+const toDeg = (r) => r * 180 / Math.PI;
+
+// Sun declination [deg] and equation of time [min] for a Julian century.
+function sunDeclEot(jc) {
+  const meanLong = (280.46646 + jc * (36000.76983 + jc * 0.0003032)) % 360;
+  const meanAnom = 357.52911 + jc * (35999.05029 - 0.0001537 * jc);
+  const eccent = 0.016708634 - jc * (0.000042037 + 0.0000001267 * jc);
+  const eqOfCtr =
+      Math.sin(toRad(meanAnom)) * (1.914602 - jc * (0.004817 + 0.000014 * jc))
+    + Math.sin(toRad(2 * meanAnom)) * (0.019993 - 0.000101 * jc)
+    + Math.sin(toRad(3 * meanAnom)) * 0.000289;
+  const appLong = meanLong + eqOfCtr
+    - 0.00569 - 0.00478 * Math.sin(toRad(125.04 - 1934.136 * jc));
+  const obliq = 23 + (26 + (21.448 - jc * (46.815 + jc * (0.00059 - jc * 0.001813))) / 60) / 60
+    + 0.00256 * Math.cos(toRad(125.04 - 1934.136 * jc));
+  const decl = toDeg(Math.asin(Math.sin(toRad(obliq)) * Math.sin(toRad(appLong))));
+  const y = Math.tan(toRad(obliq / 2)) ** 2;
+  const eot = 4 * toDeg(
+      y * Math.sin(2 * toRad(meanLong))
+    - 2 * eccent * Math.sin(toRad(meanAnom))
+    + 4 * eccent * y * Math.sin(toRad(meanAnom)) * Math.cos(2 * toRad(meanLong))
+    - 0.5 * y * y * Math.sin(4 * toRad(meanLong))
+    - 1.25 * eccent * eccent * Math.sin(2 * toRad(meanAnom)));
+  return { decl, eot };
+}
+
+const julianCentury = (date) =>
+  (date.getTime() / 86400000 + 2440587.5 - 2451545.0) / 36525.0;
+
+// Sun azimuth (0° = N, clockwise) and geometric elevation, degrees.
+function sunPosition(date, lat, lon) {
+  const { decl, eot } = sunDeclEot(julianCentury(date));
+  const utcMin = date.getUTCHours() * 60 + date.getUTCMinutes() + date.getUTCSeconds() / 60;
+  const trueSolarMin = (utcMin + eot + 4 * lon + 1440) % 1440;
+  const ha = trueSolarMin / 4 - 180; // hour angle, deg; < 0 before solar noon
+  const sinEle = Math.sin(toRad(lat)) * Math.sin(toRad(decl))
+    + Math.cos(toRad(lat)) * Math.cos(toRad(decl)) * Math.cos(toRad(ha));
+  const cosAz = Math.max(-1, Math.min(1,
+    (Math.sin(toRad(decl)) - Math.sin(toRad(lat)) * sinEle)
+      / (Math.cos(toRad(lat)) * Math.cos(Math.asin(sinEle)))));
+  const az = toDeg(Math.acos(cosAz));
+  return { azDeg: ha > 0 ? 360 - az : az, eleDeg: toDeg(Math.asin(sinEle)) };
+}
+
+// Times when the sun center crosses `eleDeg` on the UTC day of `date`
+// (flat horizon), or null if it never does — e.g. no astronomical night
+// (-18°) in a Czech midsummer, polar day/night. The terrain-corrected
+// version needs the silhouette (ideas.md).
+function sunCrossings(date, lat, lon, eleDeg) {
+  const dayUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const { decl, eot } = sunDeclEot(julianCentury(new Date(dayUtc + 43200000)));
+  const cosHa = (Math.sin(toRad(eleDeg)) - Math.sin(toRad(lat)) * Math.sin(toRad(decl)))
+    / (Math.cos(toRad(lat)) * Math.cos(toRad(decl)));
+  if (cosHa < -1 || cosHa > 1) return null;
+  const haDeg = toDeg(Math.acos(cosHa));
+  const noonMin = 720 - 4 * lon - eot; // solar noon, minutes UTC
+  return { rise: new Date(dayUtc + (noonMin - haDeg * 4) * 60000),
+           set: new Date(dayUtc + (noonMin + haDeg * 4) * 60000) };
+}
+
+// Sunrise/sunset: sun center at -0.833° (standard refraction + solar radius).
+const sunEvents = (date, lat, lon) => sunCrossings(date, lat, lon, -0.833);
 
 function draw() {
   viewW = window.innerWidth;
@@ -264,6 +334,58 @@ function drawOverlay() {
     c.beginPath();
     c.moveTo(0, hy); c.lineTo(viewW, hy);
     c.stroke();
+  }
+
+  // sun layer: current position marker + today's sunrise/set on the horizon.
+  // Azimuths are true (no declination involved — that's a compass concern).
+  const azToX = (azDeg) => {
+    const dx = ((azDeg / DEG_PER_PX - offsetX) % STRIP_W + STRIP_W) % STRIP_W;
+    const x = dx * zoom;
+    return x > viewW + 40 ? x - STRIP_W * zoom : x;
+  };
+  const now = new Date();
+  const sun = sunPosition(now, SCENE.eye.lat, SCENE.eye.lon);
+  const sx = azToX(sun.azDeg);
+  if (sun.eleDeg > -0.833 && sx > -30 && sx < viewW + 30) {
+    // pinned under the ruler at the true azimuth — the sun's real elevation
+    // is almost always far above the ±3° strip, so vertical placement would
+    // mostly lie; the number says it instead. Occlusion doesn't apply up
+    // here, and the ticks below mark where it actually meets the horizon.
+    const sy = 56;
+    const g = c.createRadialGradient(sx, sy, 1, sx, sy, 9);
+    g.addColorStop(0, "#ffffff");
+    g.addColorStop(0.65, "#fff3c4");
+    g.addColorStop(1, "rgba(255, 236, 160, 0)");
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(sx, sy, 9, 0, 2 * Math.PI);
+    c.fill();
+    c.lineWidth = 3;
+    c.strokeStyle = "rgba(255, 255, 255, 0.75)";
+    c.fillStyle = "#b58900";
+    const eleText = `${sun.eleDeg.toFixed(0)}°`;
+    c.strokeText(eleText, sx + 13, sy + 5);
+    c.fillText(eleText, sx + 13, sy + 5);
+    c.lineWidth = 1;
+  }
+  const ev = sunEvents(now, SCENE.eye.lat, SCENE.eye.lon);
+  if (ev && hy > 60 && hy < viewH) {
+    const tfmt = (d) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+    for (const [t, arrow] of [[ev.rise, "↑"], [ev.set, "↓"]]) {
+      const x = azToX(sunPosition(t, SCENE.eye.lat, SCENE.eye.lon).azDeg);
+      if (x < -30 || x > viewW + 30) continue;
+      c.strokeStyle = "#b58900";
+      c.beginPath();
+      c.moveTo(Math.round(x) + 0.5, hy - 5); c.lineTo(Math.round(x) + 0.5, hy + 5);
+      c.stroke();
+      c.lineWidth = 3;
+      c.strokeStyle = "rgba(255, 255, 255, 0.75)";
+      c.fillStyle = "#b58900";
+      const label = `${arrow}${tfmt(t)}`;
+      c.strokeText(label, x + 4, hy - 5);
+      c.fillText(label, x + 4, hy - 5);
+      c.lineWidth = 1;
+    }
   }
 }
 
@@ -475,6 +597,9 @@ async function main() {
   ready = true;
   lookAt(SCENE.azCenterDeg);
 
+  // keep the sun marker honest while the app sits open (moves ~0.25°/min)
+  setInterval(() => { if (ready) draw(); }, 60000);
+
   // Offline support (deployed host only — localhost keeps the no-cache dev
   // loop). The SW caches every tile fetched above; ⇣ prefetches a full disc.
   // Updates: the browser re-fetches sw.js on navigations; an installed PWA
@@ -620,9 +745,44 @@ function setupControls() {
 
   mk("⇣", "download this region for offline use", downloadRegion);
 
+  const sundlg = document.getElementById("sundlg");
+  sundlg.addEventListener("click", (e) => { if (e.target === sundlg) sundlg.close(); });
+  let sunTimer = null;
+  sundlg.addEventListener("close", () => clearInterval(sunTimer));
+  mk("☀", "sun position & twilight times", () => {
+    updateSunDialog();
+    sunTimer = setInterval(updateSunDialog, 1000);
+    sundlg.showModal();
+  });
+
   const about = document.getElementById("about");
   about.addEventListener("click", (e) => { if (e.target === about) about.close(); });
   mk("ⓘ", "about & data credits", () => about.showModal());
+}
+
+// Sun dialog: live position + twilight table, everything for the scene
+// viewpoint. Shadow length as a multiple of object height (cot elevation).
+function updateSunDialog() {
+  const { lat, lon } = SCENE.eye;
+  const now = new Date();
+  const s = sunPosition(now, lat, lon);
+  const shadow = s.eleDeg > 0.5 ? `, shadow ${(1 / Math.tan(toRad(s.eleDeg))).toFixed(1)}× height`
+    : s.eleDeg > 0 ? ", shadows practically infinite" : "";
+  document.getElementById("sunnow").textContent =
+    `Now: azimuth ${s.azDeg.toFixed(1)}°, elevation ${s.eleDeg.toFixed(1)}°${shadow}`;
+  const tiers = [
+    ["Astronomical twilight (−18°)", -18],
+    ["Nautical twilight (−12°)", -12],
+    ["Civil twilight (−6°)", -6],
+    ["Sunrise / sunset", -0.833],
+    ["Golden hour ends/starts (+6°)", 6],
+  ];
+  const t = (d) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+  document.getElementById("suntbl").innerHTML = tiers.map(([name, ele]) => {
+    const cr = sunCrossings(now, lat, lon, ele);
+    return `<tr><td>${name}</td><td>${cr ? t(cr.rise) : "—"}</td>` +
+           `<td>${cr ? t(cr.set) : "—"}</td></tr>`;
+  }).join("");
 }
 
 // --- pan (drag / arrows) and zoom (wheel / pinch) ---------------------------

@@ -61,9 +61,15 @@ neighbor in the scroll direction), so compass follow and the N…NW buttons
 never block on a render once their sectors are cached. Render distance is
 capped at 1.2× the visibility slider — beyond that terrain is under 2 %
 contrast (Koschmieder), indistinguishable from sky, so the cap is
-lossless; both sliders re-render on release. Toolbar: 📍 geolocate,
+lossless; both sliders re-render on release. The overlay shows the sun
+under the ruler at its true azimuth (elevation as text — the sun is
+almost always far above the narrow elevation window) and today's
+sunrise/set times at their azimuths on the eye-level line (NOAA solar
+algorithm, flat-horizon times in the browser's local timezone).
+Toolbar: 📍 geolocate,
 🧭 compass follow (adaptive heading smoothing), N…NW direction buttons,
-⛶ fullscreen, ⇣ download region for offline, ⓘ about. Sensors require
+⛶ fullscreen, ⇣ download region for offline, ☀ sun dialog (live
+azimuth/elevation/shadow length, twilight tiers, golden hour), ⓘ about. Sensors require
 HTTPS — use the deployed host, not `http://` LAN addresses.
 
 Offline: a service worker (`web/sw.js`, skipped on localhost) precaches
