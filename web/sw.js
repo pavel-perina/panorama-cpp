@@ -26,8 +26,13 @@ const PRECACHE = [
 ];
 
 self.addEventListener("install", (e) => {
+  // cache: "reload" bypasses the HTTP cache — without it, heuristic
+  // freshness (nginx sends no Cache-Control) can fill a brand-new shell
+  // cache with stale copies of app.js/pano.wasm from the browser cache.
   e.waitUntil(
-    caches.open(SHELL).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
+    caches.open(SHELL)
+      .then((c) => c.addAll(PRECACHE.map((u) => new Request(u, { cache: "reload" }))))
+      .then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
