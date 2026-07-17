@@ -63,8 +63,15 @@ capped at 1.2× the visibility slider — beyond that terrain is under 2 %
 contrast (Koschmieder), indistinguishable from sky, so the cap is
 lossless; both sliders re-render on release. Toolbar: 📍 geolocate,
 🧭 compass follow (adaptive heading smoothing), N…NW direction buttons,
-⛶ fullscreen, ⓘ about. Sensors require HTTPS — use the deployed host,
-not `http://` LAN addresses.
+⛶ fullscreen, ⇣ download region for offline, ⓘ about. Sensors require
+HTTPS — use the deployed host, not `http://` LAN addresses.
+
+Offline: a service worker (`web/sw.js`, skipped on localhost) precaches
+the app shell as one versioned set — `pano.js`/`pano.wasm` update
+atomically, so mismatched pairs can't happen on the deployed host. Tiles
+are cached on first use (⇣ prefetches the whole render-distance disc);
+peak TSVs refresh in the background. `deploy.sh` stamps the version;
+updates apply on the next launch automatically.
 
 Self-hosting: see `deploy/` (podman quadlet + nginx). After a wasm or
 web/ change, rerun `deploy/deploy.sh`. Beware the dev-server cache

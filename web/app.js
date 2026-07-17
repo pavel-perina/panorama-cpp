@@ -445,6 +445,50 @@ async function main() {
   await fontReady;
   ready = true;
   lookAt(SCENE.azCenterDeg);
+
+  // Offline support (deployed host only — localhost keeps the no-cache dev
+  // loop). The SW caches every tile fetched above; ⇣ prefetches a full disc.
+  // Updates: the browser re-fetches sw.js on navigations; an installed PWA
+  // has no reload UI, so we also check on resume and self-reload when a new
+  // version takes over during startup (invisible), or hint when mid-session.
+  if ("serviceWorker" in navigator &&
+      !["localhost", "127.0.0.1"].includes(location.hostname)) {
+    const t0 = Date.now();
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (Date.now() - t0 < 5000) location.reload();
+      else status("Updated — reopen the app to apply");
+    });
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reg.update();
+      });
+    }).catch(() => {});
+  }
+}
+
+// Prefetch every tile within the render-distance disc into the SW cache,
+// so the current viewpoint works offline (tiles already cached are free).
+async function downloadRegion() {
+  if (!navigator.serviceWorker?.controller) {
+    status("Offline cache needs the deployed (https) host + one reload");
+    return;
+  }
+  await navigator.storage?.persist?.();
+  const r = tileRange();
+  const wanted = [];
+  for (let lat = r.minLat; lat <= r.maxLat; ++lat)
+    for (let lon = r.minLon; lon <= r.maxLon; ++lon)
+      if (tileNearestKm(lat, lon) <= SCENE.distMaxM / 1000 + 2)
+        wanted.push(tileName(lat, lon));
+  let done = 0, missing = 0;
+  for (const name of wanted) {
+    const resp = await fetch(`${DATA_URL}/hgt3-zst/${name}.zst`);
+    if (!resp.ok) ++missing;
+    status(`Offline download ${++done}/${wanted.length}…`);
+  }
+  const est = await navigator.storage?.estimate?.();
+  const mb = est ? ` (${(est.usage / 1048576).toFixed(0)} MB stored)` : "";
+  status(`Region cached for offline: ${done - missing} tiles${mb}`);
 }
 
 // --- viewpoint / direction controls (phone-first) ---------------------------
@@ -544,6 +588,8 @@ function setupControls() {
   for (const [name, az] of [["N", 0], ["NE", 45], ["E", 90], ["SE", 135],
                             ["S", 180], ["SW", 225], ["W", 270], ["NW", 315]])
     mk(name, `look ${name} (az ${az}°)`, () => lookAt(az));
+
+  mk("⇣", "download this region for offline use", downloadRegion);
 
   const about = document.getElementById("about");
   about.addEventListener("click", (e) => { if (e.target === about) about.close(); });

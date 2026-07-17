@@ -29,7 +29,15 @@ rm -rf "$app/web"    # layout of earlier deploys
 mkdir -p "$app/build-wasm"
 install -m 644 "$repo/web/index.html" "$repo/web/app.js" \
     "$repo/web/manifest.webmanifest" "$repo/web/icon-192.png" \
-    "$repo/web/icon-512.png" "$app/"
+    "$repo/web/icon-512.png" "$repo/web/sw.js" "$app/"
+# Version from git describe (pano-blend convention: tags/commit/-dirty).
+# Stamped into the about dialog and the service-worker cache name — a new
+# deploy means a new shell cache, and pano.js + pano.wasm swap atomically
+# with it (no mismatched pairs, ever). The datetime suffix keeps repeated
+# dirty-tree deploys distinct.
+ver="$(git -C "$repo" describe --tags --dirty --always 2>/dev/null || echo unknown)"
+sed -i "s/const VERSION = \"dev\"/const VERSION = \"$ver-$(date +%Y%m%d%H%M)\"/" "$app/sw.js"
+sed -i "s|<span id=\"ver\">dev</span>|<span id=\"ver\">$ver, deployed $(date +%Y-%m-%d)</span>|" "$app/index.html"
 install -m 644 "$repo/build-wasm/pano.js" "$repo/build-wasm/pano.wasm" "$app/build-wasm/"
 echo "conf + app deployed"
 
