@@ -100,7 +100,7 @@ const mod12 = (k) => ((k % 12) + 12) % 12;
 // mod12(k) is the cache index, k keeps the layout math wrap-free).
 function visibleKs() {
   const k0 = Math.floor(offsetX / SECTOR_PX);
-  const k1 = Math.floor((offsetX + canvas.width / zoom) / SECTOR_PX);
+  const k1 = Math.floor((offsetX + viewW / zoom) / SECTOR_PX);
   const ks = [];
   for (let k = k0; k <= k1; ++k) ks.push(k);
   return ks;
@@ -118,29 +118,44 @@ function clampZoom(z) {
 const SKY = [149, 195, 233];    // zenith color; horizon fades to near-white in the tonemap
 const TERRAIN = [50, 65, 0];    // near-terrain color (khaki)
 
+let viewW = 0, viewH = 0; // viewport size in CSS px (backing store is ×dpr)
+
 function draw() {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight - document.getElementById("bar").offsetHeight;
-  canvas.width = vw;
-  canvas.height = vh;
+  viewW = window.innerWidth;
+  viewH = window.innerHeight - document.getElementById("bar").offsetHeight;
+  // HiDPI / OS display scaling: back the canvas with physical pixels and
+  // keep all drawing code in CSS px via the transform — text rasterizes
+  // natively instead of being upscaled (blurry at 125% scaling), 1 px
+  // lines stay 1 device-px-ish.
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(viewW * dpr);
+  canvas.height = Math.round(viewH * dpr);
+  canvas.style.width = `${viewW}px`;
+  canvas.style.height = `${viewH}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   zoom = clampZoom(zoom);
   offsetX = ((offsetX % STRIP_W) + STRIP_W) % STRIP_W;
-  offsetY = Math.max(0, Math.min(offsetY, stripH - vh / zoom));
+  offsetY = Math.max(0, Math.min(offsetY, stripH - viewH / zoom));
 
-  ctx.imageSmoothingEnabled = zoom < 1; // smooth zoomed out, crisp pixels zoomed in
+  // crisp pixels only when the effective scale is an integer; otherwise
+  // smoothing avoids uneven pixel blocks (e.g. zoom 1 at 125% scaling)
+  ctx.imageSmoothingEnabled = zoom < 1 || (zoom * dpr) % 1 !== 0;
   // page background below the strip (tall windows), sky placeholder within it
   ctx.fillStyle = "#002b36";
-  ctx.fillRect(0, 0, vw, vh);
+  ctx.fillRect(0, 0, viewW, viewH);
   ctx.fillStyle = `rgb(${SKY[0]},${SKY[1]},${SKY[2]})`; // placeholder for unrendered sectors
-  ctx.fillRect(0, 0, vw, Math.min(vh, (stripH - offsetY) * zoom));
+  ctx.fillRect(0, 0, viewW, Math.min(viewH, (stripH - offsetY) * zoom));
+  // never sample past the strip bottom: a source rect that overshoots the
+  // sector canvas blends in transparent pixels — a 1 px line at the bottom
+  const srcH = Math.min(viewH / zoom, stripH - offsetY);
   let missing = false;
   for (const k of visibleKs()) {
     const s = sectors.get(mod12(k));
     if (!s) { missing = true; continue; }
     s.stamp = ++stamp;
     ctx.drawImage(s.canvas,
-                  offsetX - k * SECTOR_PX, offsetY, vw / zoom, vh / zoom,
-                  0, 0, vw, vh);
+                  offsetX - k * SECTOR_PX, offsetY, viewW / zoom, srcH,
+                  0, 0, viewW, srcH * zoom);
   }
   drawOverlay();
   if (missing && ready) pump();
@@ -170,7 +185,7 @@ function drawOverlay() {
     if (!s) continue;
     for (const p of s.summits) {
       const x = (k * SECTOR_PX + p.x - offsetX) * zoom;
-      if (x < -40 || x > canvas.width + 40) continue;
+      if (x < -40 || x > viewW + 40) continue;
       cand.push({ ...p, sx: x });
     }
   }
@@ -222,7 +237,7 @@ function drawOverlay() {
   c.fillStyle = "#0b4d7a";
   c.textAlign = "center";
   const azLeft = offsetX * DEG_PER_PX;
-  const azRight = azLeft + canvas.width / zoom * DEG_PER_PX;
+  const azRight = azLeft + viewW / zoom * DEG_PER_PX;
   for (let az = Math.ceil(azLeft); az <= Math.floor(azRight); ++az) {
     const x = Math.round((az / DEG_PER_PX - offsetX) * zoom) + 0.5;
     c.beginPath();
@@ -235,10 +250,10 @@ function drawOverlay() {
   // horizon (eye-level) line: subtle darkening of what's underneath, so it
   // reads as a crease in the image rather than a wire across it
   const hy = Math.round(toY(SCENE.elMaxRad / SCENE.stepRad)) + 0.5;
-  if (hy > 0 && hy < canvas.height) {
+  if (hy > 0 && hy < viewH) {
     c.strokeStyle = "rgba(0, 30, 45, 0.10)";
     c.beginPath();
-    c.moveTo(0, hy); c.lineTo(canvas.width, hy);
+    c.moveTo(0, hy); c.lineTo(viewW, hy);
     c.stroke();
   }
 }
@@ -335,7 +350,7 @@ let urlTimer = null;
 function scheduleUrlSync() {
   clearTimeout(urlTimer);
   urlTimer = setTimeout(() => {
-    const center = (offsetX + canvas.width / zoom / 2) * DEG_PER_PX;
+    const center = (offsetX + viewW / zoom / 2) * DEG_PER_PX;
     const p = new URLSearchParams(location.search);
     p.set("lat", SCENE.eye.lat.toFixed(6));
     p.set("lon", SCENE.eye.lon.toFixed(6));
@@ -656,9 +671,9 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") { offsetX += 100 / zoom; lastDir = 1; draw(); }
   if (e.key === "ArrowUp") { offsetY -= 50 / zoom; draw(); }
   if (e.key === "ArrowDown") { offsetY += 50 / zoom; draw(); }
-  if (e.key === "+" || e.key === "=") zoomAt(canvas.width / 2, canvas.height / 2, zoom * 1.25);
-  if (e.key === "-") zoomAt(canvas.width / 2, canvas.height / 2, zoom * 0.8);
-  if (e.key === "0") zoomAt(canvas.width / 2, canvas.height / 2, 1.0); // reset to 100%
+  if (e.key === "+" || e.key === "=") zoomAt(viewW / 2, viewH / 2, zoom * 1.25);
+  if (e.key === "-") zoomAt(viewW / 2, viewH / 2, zoom * 0.8);
+  if (e.key === "0") zoomAt(viewW / 2, viewH / 2, 1.0); // reset to 100%
 });
 window.addEventListener("resize", draw);
 
