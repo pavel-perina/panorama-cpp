@@ -74,12 +74,18 @@
                  border-radius: 3px; cursor: pointer; }
   #menu button:hover { background: var(--btn); }
   #menu label { padding: 8px 10px; }
+  #knobdlg { position: fixed; top: 42px; left: 8px; margin: 0;
+             padding: 10px 12px; }
+  #knob { display: block; touch-action: none; cursor: grab; }
+  #knobdlg p { margin: 6px 0 2px; text-align: center;
+               font-variant-numeric: tabular-nums; }
+  input[type="checkbox"] { accent-color: var(--accent); }
   dialog { background: var(--panel); color: var(--fg-dim);
            border: 1px solid var(--border);
            border-radius: 5px; padding: 14px 18px; max-width: 26em;
            font: inherit; }
   dialog::backdrop { background: rgba(15, 28, 30, 0.7); } /* --panel at 70% */
-  dialog h3 { margin: 0 0 8px; color: var(--fg); }
+  dialog h3 { margin: 0 0 8px; color: var(--accent2); }
   dialog p { margin: 6px 0; }
   dialog a { color: var(--accent); }
   dialog button { float: right; background: var(--btn); color: var(--fg-dim);
@@ -110,6 +116,33 @@
                       style="vertical-align:middle"> <span id="refrval">1.18</span>
   </label>
 </div>
+<!-- azimuth knob: north stays up, the needle is the view direction — drag it
+     (or tap a wind label) to turn. Non-modal so the panorama pans live. -->
+<dialog id="knobdlg">
+  <svg id="knob" viewBox="0 0 100 100" width="160" height="160">
+    <circle cx="50" cy="50" r="38" fill="none" stroke="var(--border)" stroke-width="2"/>
+    <g stroke="var(--border)" stroke-width="2">
+      <line x1="50" y1="12" x2="50" y2="17" transform="rotate(45 50 50)"/>
+      <line x1="50" y1="12" x2="50" y2="17" transform="rotate(135 50 50)"/>
+      <line x1="50" y1="12" x2="50" y2="17" transform="rotate(225 50 50)"/>
+      <line x1="50" y1="12" x2="50" y2="17" transform="rotate(315 50 50)"/>
+    </g>
+    <g fill="var(--fg-dim)" font-size="9" text-anchor="middle" dominant-baseline="central">
+      <text x="50" y="6" fill="var(--accent)">N</text>
+      <text x="94" y="50">E</text>
+      <text x="50" y="94">S</text>
+      <text x="6" y="50">W</text>
+    </g>
+    <g id="knobsun"><circle cx="50" cy="16" r="2.8" fill="var(--sun)"/></g>
+    <g id="knobneedle" fill="var(--accent)" stroke="var(--accent)">
+      <line x1="50" y1="50" x2="50" y2="23" stroke-width="2"/>
+      <path d="M50 13 L45.5 24 L54.5 24 Z" stroke="none"/>
+    </g>
+    <circle cx="50" cy="50" r="2.5" fill="var(--fg-dim)"/>
+  </svg>
+  <p id="knobaz"></p>
+  <label><input type="checkbox" id="follow"> Follow compass</label>
+</dialog>
 <dialog id="sundlg">
   <h3>Sun</h3>
   <p id="sunnow"></p>
@@ -124,14 +157,14 @@
   <h3>Obzor</h3>
   <p>Terrain panorama with summit annotations: raycast distance map from
      SRTM heightmaps.</p>
-  <p>Engine: panorama-cpp (C++ → WebAssembly), MIT license.<br>
+  <p>Engine: <a href="https://github.com/pavel-perina/panorama-cpp">panorama-cpp</a> (C++ → WebAssembly), MIT license.<br>
      Version: <span id="ver">dev</span></p>
   <p>Elevation data: NASA SRTM (public domain), void-filled 3″ versions by
      <a href="https://viewfinderpanoramas.org" target="_blank" rel="noopener">Jonathan de Ferranti</a>.</p>
   <p>Peak data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
      contributors, ODbL.</p>
-  <p>Inter typeface © Rasmus Andersson, SIL OFL 1.1.</p>
-  <p>Zstandard decoder © Meta Platforms, BSD.</p>
+  <p><a href="https://github.com/rsms/inter">Inter typeface</a> © Rasmus Andersson, SIL OFL 1.1.</p>
+  <p><a href="https://github.com/facebook/zstd">Zstandard decoder</a> © Meta Platforms, BSD.</p>
   <button onclick="this.closest('dialog').close()">Close</button>
 </dialog>
 <!-- pano.js loads inside web/worker.js — the WASM module lives off-thread -->

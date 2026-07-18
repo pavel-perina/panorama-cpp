@@ -11,7 +11,7 @@
 // The view scrolls over a virtual 360° strip built from twelve 30° sectors,
 // each rendered on demand into its own offscreen canvas and LRU-cached
 // (a single 360° canvas would exceed iOS Safari's canvas-area budget).
-// Compass follow and the direction buttons only move the viewport; a render
+// Compass follow and the azimuth knob only move the viewport; a render
 // happens only when an uncached sector scrolls into view, and idle time
 // prefetches the neighbor sector in the direction of travel.
 //
@@ -369,6 +369,7 @@ function draw() {
                   0, 0, viewW, srcH * zoom);
   }
   drawOverlay();
+  updateKnob(); // needle tracks every pan source (drag, sensor, knob itself)
   if (missing && ready) pump();
   scheduleUrlSync();
 }
@@ -769,6 +770,7 @@ function compassHeading(alpha, beta, gamma) {
 
 let compassOn = false;
 let smoothAz = null; // low-pass filtered heading (shaky hands, magnetometer noise)
+let compassBtn = null; // bar 🧭: dimmed while the sensor drives the view
 
 function onOrientation(e) {
   let heading = null;
@@ -789,33 +791,91 @@ function onOrientation(e) {
   lookAt(smoothAz); // pure scroll; missing sectors render via draw() -> pump()
 }
 
-async function toggleCompass(btn) {
-  if (compassOn) {
+// Sensor follow on/off; the "Follow compass" checkbox in the knob dialog and
+// the bar button opacity always end up reflecting the actual state (which can
+// differ from the request when the iOS permission prompt is declined).
+async function setCompass(on) {
+  const sync = () => {
+    followChk.checked = compassOn;
+    if (compassBtn) compassBtn.style.opacity = compassOn ? "0.5" : "";
+  };
+  if (!on) {
     compassOn = false;
-    btn.style.opacity = "";
     window.removeEventListener("deviceorientationabsolute", onOrientation, true);
     window.removeEventListener("deviceorientation", onOrientation, true);
+    sync();
     return;
   }
+  if (compassOn) return;
   // iOS requires an explicit permission prompt from a user gesture
   if (typeof DeviceOrientationEvent !== "undefined" &&
       typeof DeviceOrientationEvent.requestPermission === "function") {
     try {
       if (await DeviceOrientationEvent.requestPermission() !== "granted") {
         status("Compass permission denied", { sticky: true });
+        sync();
         return;
       }
     } catch (err) {
       status(`Compass: ${err.message}`, { sticky: true });
+      sync();
       return;
     }
   }
   compassOn = true;
   smoothAz = null;
-  btn.style.opacity = "0.5";
   window.addEventListener("deviceorientationabsolute", onOrientation, true);
   window.addEventListener("deviceorientation", onOrientation, true);
+  sync();
 }
+
+// --- azimuth knob (🧭 dialog) ------------------------------------------------
+// Not a compass: north stays up, the draggable needle is the view direction.
+// Non-modal on purpose — the panorama pans live behind it while dragging.
+// The needle snaps within 5° of the eight winds, so tapping a wind label
+// jumps exactly there (what the old N…NW buttons did).
+const knobdlg = document.getElementById("knobdlg");
+const knobSvg = document.getElementById("knob");
+const followChk = document.getElementById("follow");
+const WINDS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+const centerAzDeg = () =>
+  ((((offsetX + viewW / zoom / 2) * DEG_PER_PX) % 360) + 360) % 360;
+
+function updateKnob() {
+  if (!knobdlg.open) return;
+  const az = centerAzDeg();
+  document.getElementById("knobneedle")
+    .setAttribute("transform", `rotate(${az.toFixed(1)} 50 50)`);
+  document.getElementById("knobaz").textContent =
+    `${Math.round(az) % 360}° ${WINDS[Math.round(az / 45) % 8]}`;
+  const sun = sunPosition(new Date(), SCENE.eye.lat, SCENE.eye.lon);
+  const sunDot = document.getElementById("knobsun");
+  sunDot.style.display = sun.eleDeg > -0.833 ? "" : "none";
+  sunDot.setAttribute("transform", `rotate(${sun.azDeg.toFixed(1)} 50 50)`);
+}
+
+function knobPointAz(e) {
+  const r = knobSvg.getBoundingClientRect();
+  const az = (toDeg(Math.atan2(e.clientX - (r.left + r.width / 2),
+                               (r.top + r.height / 2) - e.clientY)) + 360) % 360;
+  const snap = Math.round(az / 45) * 45; // nearest wind is within 22.5°
+  return Math.abs(az - snap) < 5 ? snap % 360 : az;
+}
+
+let knobDrag = false;
+knobSvg.addEventListener("pointerdown", (e) => {
+  knobSvg.setPointerCapture(e.pointerId);
+  knobDrag = true;
+  setCompass(false); // grabbing the needle takes control back from the sensor
+  lookAt(knobPointAz(e));
+});
+knobSvg.addEventListener("pointermove", (e) => {
+  if (knobDrag) lookAt(knobPointAz(e));
+});
+for (const ev of ["pointerup", "pointercancel"])
+  knobSvg.addEventListener(ev, () => { knobDrag = false; });
+followChk.addEventListener("change", () => setCompass(followChk.checked));
 
 function setupControls() {
   const bar = document.getElementById("dirs");
@@ -829,7 +889,7 @@ function setupControls() {
     return b;
   };
   // Menu rows use text labels, not icons — the bar stays at three symbols
-  // (pin, compass, menu) plus the direction shortcuts.
+  // (menu, pin, compass); direction jumps live on the knob dialog now.
   const mkItem = (label, onClick) => {
     const b = document.createElement("button");
     b.textContent = label;
@@ -844,6 +904,7 @@ function setupControls() {
   });
   document.addEventListener("click", (e) => {
     if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true;
+    if (knobdlg.open && !knobdlg.contains(e.target)) knobdlg.close();
   });
 
   mk("📍", "render from my GPS position", () => {
@@ -862,11 +923,11 @@ function setupControls() {
     { enableHighAccuracy: true, timeout: 15000 });
   });
 
-  const compassBtn = mk("🧭", "follow compass", () => toggleCompass(compassBtn));
-
-  for (const [name, az] of [["N", 0], ["NE", 45], ["E", 90], ["SE", 135],
-                            ["S", 180], ["SW", 225], ["W", 270], ["NW", 315]])
-    mk(name, `look ${name} (az ${az}°)`, () => lookAt(az));
+  compassBtn = mk("🧭", "azimuth knob & compass", (e) => {
+    e.stopPropagation(); // same as ☰: don't let the outside-click closer race
+    if (knobdlg.open) knobdlg.close();
+    else { knobdlg.show(); updateKnob(); }
+  });
 
   const sundlg = document.getElementById("sundlg");
   sundlg.addEventListener("click", (e) => { if (e.target === sundlg) sundlg.close(); });
@@ -1007,6 +1068,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "+" || e.key === "=") zoomAt(viewW / 2, viewH / 2, zoom * 1.25);
   if (e.key === "-") zoomAt(viewW / 2, viewH / 2, zoom * 0.8);
   if (e.key === "0") zoomAt(viewW / 2, viewH / 2, 1.0); // reset to 100%
+  if (e.key === "Escape" && knobdlg.open) knobdlg.close(); // non-modal: no auto-Esc
 });
 window.addEventListener("resize", draw);
 
