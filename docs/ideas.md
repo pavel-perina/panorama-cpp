@@ -423,12 +423,14 @@ Field observations (webcams, 2026-07-18) and where the v1 model stops:
   wide-elevation clear-sky window (print mode) would need a 4-stop
   vertical gradient.
 
-Separate but adjacent gripe: the solarized-dark **UI** theme (buttons,
-dialogs, overlay ink — not the render palette) is low-contrast and due
-for replacement. Rides the planned CSS custom-properties + SVG icon
-refactor; the overlay canvas colors scattered through app.js
-(#b58900, #268bd2, …) should move into one palette object at the same
-time so the theme is swappable in one place.
+Separate but adjacent gripe — **done 2026-07-18**: the solarized-dark
+UI theme is gone. The web app now uses Terafox (nightfox.nvim), declared
+as raw palette + semantic roles (`--bg`, `--panel`, `--accent`, `--ink`,
+`--sun`, …) in index.html's `:root`; the canvas overlay reads the same
+variables via getComputedStyle, so a re-theme is one CSS block.
+`--accent2` (apricot) is reserved for a future peak-search cursor. The
+native CLI keeps its solarized-blue label ink (parity reference, don't
+care). SVG icons for the three remaining bar buttons still pending.
 
 ## Renderer (carried over, see also mobile-app-plan.md)
 

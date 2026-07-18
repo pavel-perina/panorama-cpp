@@ -87,6 +87,17 @@ const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
 const status = (msg) => { document.getElementById("status").textContent = msg; };
 
+// Overlay ink colors come from the CSS custom properties in index.html
+// (single source of truth for the theme — currently Terafox).
+const cssColor = (n) =>
+  getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const THEME = {
+  bg: cssColor("--bg"),
+  ink: cssColor("--ink"),     // label/ruler text (always with a white halo)
+  tick: cssColor("--border"), // ruler tick marks
+  sun: cssColor("--sun"),     // sun marker + sunrise/set ticks
+};
+
 // The WASM module lives in a Web Worker (worker.js) so renders and tile
 // decompression never block the UI thread. wcall() is the whole RPC layer:
 // one pending map, ids, promises; {progress} messages feed the status line.
@@ -318,7 +329,7 @@ function draw() {
   // page background; the sky placeholder is painted only under sectors that
   // are still missing — painting it under drawn ones leaks a light 1 px
   // line through the antialiased bottom edge of the terrain image
-  ctx.fillStyle = "#002b36";
+  ctx.fillStyle = THEME.bg;
   ctx.fillRect(0, 0, viewW, viewH);
   // never sample past the strip bottom: a source rect that overshoots the
   // sector canvas blends in transparent pixels
@@ -411,15 +422,15 @@ function drawOverlay() {
     c.lineWidth = 3;
     c.strokeStyle = "rgba(255, 255, 255, 0.75)"; // halo: readable over terrain
     c.strokeText(l.text, 0, 0);
-    c.fillStyle = "#0b4d7a";
+    c.fillStyle = THEME.ink;
     c.fillText(l.text, 0, 0);
     c.restore();
     c.lineWidth = 1;
   }
 
   // azimuth ruler pinned to the viewport top
-  c.strokeStyle = "#4d5a63";
-  c.fillStyle = "#0b4d7a";
+  c.strokeStyle = THEME.tick;
+  c.fillStyle = THEME.ink;
   c.textAlign = "center";
   const azLeft = offsetX * DEG_PER_PX;
   const azRight = azLeft + viewW / zoom * DEG_PER_PX;
@@ -468,7 +479,7 @@ function drawOverlay() {
     c.fill();
     c.lineWidth = 3;
     c.strokeStyle = "rgba(255, 255, 255, 0.75)";
-    c.fillStyle = "#b58900";
+    c.fillStyle = THEME.sun;
     const eleText = `${sun.eleDeg.toFixed(0)}°`;
     c.strokeText(eleText, sx + 13, sy + 5);
     c.fillText(eleText, sx + 13, sy + 5);
@@ -480,13 +491,13 @@ function drawOverlay() {
     for (const [t, arrow] of [[ev.rise, "↑"], [ev.set, "↓"]]) {
       const x = azToX(sunPosition(t, SCENE.eye.lat, SCENE.eye.lon).azDeg);
       if (x < -30 || x > viewW + 30) continue;
-      c.strokeStyle = "#b58900";
+      c.strokeStyle = THEME.sun;
       c.beginPath();
       c.moveTo(Math.round(x) + 0.5, hy - 5); c.lineTo(Math.round(x) + 0.5, hy + 5);
       c.stroke();
       c.lineWidth = 3;
       c.strokeStyle = "rgba(255, 255, 255, 0.75)";
-      c.fillStyle = "#b58900";
+      c.fillStyle = THEME.sun;
       const label = `${arrow}${tfmt(t)}`;
       c.strokeText(label, x + 4, hy - 5);
       c.fillText(label, x + 4, hy - 5);

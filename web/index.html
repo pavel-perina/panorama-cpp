@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#002b36">
+<meta name="theme-color" content="#152528">
 <!-- legacy iOS fallback; iOS 16.4+ reads display:standalone from the manifest -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,46 +12,78 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
+  :root {
+    /* Raw palette: Terafox (nightfox.nvim, extra/terafox/alacritty.toml).
+       app.js reads the semantic roles below for the canvas overlay, so a
+       re-theme is: swap these values, done. */
+    --terafox-bg: #152528;
+    --terafox-fg: #e6eaea;
+    --terafox-fg-dim: #cbd9d8;
+    --terafox-black: #2f3239;
+    --terafox-black-bright: #4e5157;
+    --terafox-green: #7aa4a1;
+    --terafox-blue: #5a93aa;
+    --terafox-blue-dim: #4d7d90;
+    --terafox-cyan: #a1cdd8;
+    --terafox-cyan-bright: #afd4de;
+    --terafox-apricot: #fda47f;
+    --terafox-orange: #ff8349;
+    --terafox-panel: #254147;   /* footer_bar background */
+    /* Semantic roles */
+    --bg: var(--terafox-bg);
+    --fg: var(--terafox-fg);
+    --fg-dim: var(--terafox-fg-dim);
+    --muted: var(--terafox-green);
+    --panel: var(--terafox-panel);
+    --border: var(--terafox-black-bright);
+    --accent: var(--terafox-cyan);       /* light cyan */
+    --accent2: var(--terafox-apricot);   /* the cyan–apricot pairing; reserved
+                                            for a future peak-search cursor */
+    --ink: var(--terafox-blue-dim);      /* canvas label ink (white halo) */
+    --sun: var(--terafox-orange);        /* sun marker/tick ink on canvas */
+  }
   @font-face {
     font-family: 'Inter'; font-style: normal; font-weight: 400;
     src: url(../data/fonts/Inter-Regular.woff2) format('woff2');
   }
   html, body { margin: 0; height: 100%; overflow: hidden;
-               background: #002b36; color: #839496;
+               background: var(--bg); color: var(--fg-dim);
                font: 14px/1.4 Inter, system-ui, sans-serif; }
   #bar { padding: 6px 10px; }
   #view { display: block; touch-action: none; cursor: grab;
           image-rendering: pixelated; }
-  #dirs button { background: #073642; color: #93a1a1; border: 1px solid #586e75;
+  #dirs button { background: var(--panel); color: var(--fg-dim);
+                 border: 1px solid var(--border);
                  border-radius: 3px; margin: 0 1px; padding: 2px 7px;
                  font: inherit; cursor: pointer; }
-  input[type="range"] { accent-color: #268bd2; }
+  input[type="range"] { accent-color: var(--accent); }
   #menu { position: fixed; top: 42px; left: 8px; z-index: 10;
           display: flex; flex-direction: column; min-width: 15em;
-          background: #073642; border: 1px solid #586e75; border-radius: 5px;
-          padding: 6px; }
+          background: var(--panel); border: 1px solid var(--border);
+          border-radius: 5px; padding: 6px; }
   #menu[hidden] { display: none; }
-  #menu button { background: none; border: none; color: #93a1a1; font: inherit;
-                 text-align: left; padding: 8px 10px; border-radius: 3px;
-                 cursor: pointer; }
-  #menu button:hover { background: #002b36; }
+  #menu button { background: none; border: none; color: var(--fg-dim);
+                 font: inherit; text-align: left; padding: 8px 10px;
+                 border-radius: 3px; cursor: pointer; }
+  #menu button:hover { background: var(--bg); }
   #menu label { padding: 8px 10px; }
-  dialog { background: #073642; color: #93a1a1; border: 1px solid #586e75;
+  dialog { background: var(--panel); color: var(--fg-dim);
+           border: 1px solid var(--border);
            border-radius: 5px; padding: 14px 18px; max-width: 26em;
            font: inherit; }
-  dialog::backdrop { background: rgba(0, 43, 54, 0.7); }
-  dialog h3 { margin: 0 0 8px; color: #93a1a1; }
+  dialog::backdrop { background: rgba(21, 37, 40, 0.7); } /* --bg at 70% */
+  dialog h3 { margin: 0 0 8px; color: var(--fg); }
   dialog p { margin: 6px 0; }
-  dialog a { color: #268bd2; }
-  dialog button { float: right; background: #073642; color: #93a1a1;
-                  border: 1px solid #586e75; border-radius: 3px;
+  dialog a { color: var(--accent); }
+  dialog button { float: right; background: var(--panel); color: var(--fg-dim);
+                  border: 1px solid var(--border); border-radius: 3px;
                   padding: 2px 10px; font: inherit; cursor: pointer; }
   #sundlg table { border-collapse: collapse; margin: 8px 0; }
   #sundlg th, #sundlg td { padding: 2px 12px 2px 0; text-align: right;
                            font-variant-numeric: tabular-nums; }
   #sundlg th:first-child, #sundlg td:first-child { text-align: left; }
-  #sundlg th { color: #657b83; font-weight: 400; }
-  #sundlg #sunnote { color: #657b83; font-size: 12px; }
+  #sundlg th { color: var(--muted); font-weight: 400; }
+  #sundlg #sunnote { color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -59,7 +91,7 @@
   <span id="dirs"></span>
   <span id="status">Obzor — loading…</span>
   <label id="visctl" style="float:right; display:none">
-    visibility <input id="vis" type="range" min="10" max="300" step="5" value="100"
+    Visibility <input id="vis" type="range" min="10" max="300" step="5" value="100"
                       style="vertical-align:middle"> <span id="visval">100 km</span>
   </label>
 </div>
@@ -67,7 +99,7 @@
 <!-- ☰ panel; rows are appended by app.js (text labels, not icons) -->
 <div id="menu" hidden>
   <label id="refrctl" style="display:none">
-    refraction <input id="refr" type="range" min="1.00" max="1.30" step="0.01" value="1.18"
+    Refraction <input id="refr" type="range" min="1.00" max="1.30" step="0.01" value="1.18"
                       style="vertical-align:middle"> <span id="refrval">1.18</span>
   </label>
 </div>
@@ -79,7 +111,7 @@
     <tbody id="suntbl"></tbody>
   </table>
   <p id="sunnote">Flat-horizon times at the viewpoint, local timezone.</p>
-  <button onclick="this.closest('dialog').close()">close</button>
+  <button onclick="this.closest('dialog').close()">Close</button>
 </dialog>
 <dialog id="about">
   <h3>Obzor</h3>
@@ -93,7 +125,7 @@
      contributors, ODbL.</p>
   <p>Inter typeface © Rasmus Andersson, SIL OFL 1.1.</p>
   <p>Zstandard decoder © Meta Platforms, BSD.</p>
-  <button onclick="this.closest('dialog').close()">close</button>
+  <button onclick="this.closest('dialog').close()">Close</button>
 </dialog>
 <!-- pano.js loads inside web/worker.js — the WASM module lives off-thread -->
 <script src="app.js"></script>
