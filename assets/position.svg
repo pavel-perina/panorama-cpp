@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g transform="matrix(1,0,0,1,-60,0)">
+        <g id="Hamburger">
+        </g>
+        <g id="Compas">
+        </g>
+        <g id="Sun">
+        </g>
+        <g id="Position">
+            <g transform="matrix(1,0,0,0.666667,0,2)">
+                <path d="M72,3L72,6" style="fill:none;stroke:white;stroke-width:2.35px;"/>
+            </g>
+            <g transform="matrix(0.5,0,0,1,39.5,0)">
+                <path d="M78,12L81,12" style="fill:none;stroke:white;stroke-width:2.53px;"/>
+            </g>
+            <g transform="matrix(2.4,0,0,0.923077,-106.8,1.38462)">
+                <ellipse cx="74.5" cy="11.5" rx="2.5" ry="6.5" style="fill:none;stroke:white;stroke-width:1.1px;"/>
+            </g>
+            <g transform="matrix(1.5,0,0,1.5,57,-3)">
+                <circle cx="10" cy="10" r="2" style="fill:white;"/>
+            </g>
+            <path d="M66,12L64,12" style="fill:none;stroke:white;stroke-width:2px;"/>
+            <path d="M72,18L72,20" style="fill:none;stroke:white;stroke-width:2px;"/>
+        </g>
+    </g>
+</svg>
