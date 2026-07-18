@@ -26,7 +26,8 @@ std::array<uint8_t, 4> toPx(const color::OkLab &lab)
 
 std::vector<uint8_t> tonemapDistMap(const View &view,
                                     const std::vector<uint16_t> &distMap,
-                                    double visibilityKm, Rgb8 terrain, Rgb8 sky)
+                                    double visibilityKm, Rgb8 terrain, Rgb8 sky,
+                                    const Rgb8 *horizon)
 {
     const color::OkLab terrainLab = color::okLabFromRgb(
         {terrain.r / 255.0f, terrain.g / 255.0f, terrain.b / 255.0f});
@@ -35,8 +36,12 @@ std::vector<uint8_t> tonemapDistMap(const View &view,
     // Airlight at the horizon is nearly white; `sky` is the zenith color.
     // Distant terrain and low sky both converge on this band, so the far
     // ridges dissolve into the sky instead of silhouetting against it.
+    // A time-of-day palette can override the band (sunset orange, night).
     const color::OkLab whiteLab = color::okLabFromRgb({1.0f, 1.0f, 1.0f});
-    const color::OkLab horizonLab = lerpLab(skyLab, whiteLab, 0.85f);
+    const color::OkLab horizonLab =
+        horizon ? color::okLabFromRgb({horizon->r / 255.0f, horizon->g / 255.0f,
+                                       horizon->b / 255.0f})
+                : lerpLab(skyLab, whiteLab, 0.85f);
 
     // Color per distance value (index = distance in distStep units).
     const double k = 3.912 / (visibilityKm * 1000.0);

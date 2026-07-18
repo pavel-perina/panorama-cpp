@@ -1,0 +1,112 @@
+{
+ "model": "single-scattering Rayleigh+Mie+ozone, sun azimuth offset 35.0 deg, OKLab legibility clamps",
+ "columns": [
+  "terrain",
+  "horizon",
+  "sky"
+ ],
+ "rows": [
+  {
+   "sunEle": -18,
+   "terrain": "020400",
+   "horizon": "161616",
+   "sky": "070707"
+  },
+  {
+   "sunEle": -15,
+   "terrain": "020400",
+   "horizon": "171615",
+   "sky": "070707"
+  },
+  {
+   "sunEle": -12,
+   "terrain": "020400",
+   "horizon": "181612",
+   "sky": "070707"
+  },
+  {
+   "sunEle": -9,
+   "terrain": "020400",
+   "horizon": "1b150c",
+   "sky": "070708"
+  },
+  {
+   "sunEle": -6,
+   "terrain": "020400",
+   "horizon": "221201",
+   "sky": "060709"
+  },
+  {
+   "sunEle": -4,
+   "terrain": "030700",
+   "horizon": "442700",
+   "sky": "0e1014"
+  },
+  {
+   "sunEle": -2,
+   "terrain": "070e00",
+   "horizon": "754800",
+   "sky": "2b2c30"
+  },
+  {
+   "sunEle": -1,
+   "terrain": "0b1200",
+   "horizon": "956000",
+   "sky": "3b3d3f"
+  },
+  {
+   "sunEle": 0,
+   "terrain": "0f1700",
+   "horizon": "b17d00",
+   "sky": "494c4e"
+  },
+  {
+   "sunEle": 1,
+   "terrain": "121b00",
+   "horizon": "c49920",
+   "sky": "535a5c"
+  },
+  {
+   "sunEle": 2,
+   "terrain": "161f00",
+   "horizon": "d0ae44",
+   "sky": "5b656a"
+  },
+  {
+   "sunEle": 4,
+   "terrain": "1b2600",
+   "horizon": "ddc97b",
+   "sky": "65757f"
+  },
+  {
+   "sunEle": 6,
+   "terrain": "1f2b00",
+   "horizon": "e4d89f",
+   "sky": "6d7f8e"
+  },
+  {
+   "sunEle": 10,
+   "terrain": "253200",
+   "horizon": "eae4c4",
+   "sky": "768ba1"
+  },
+  {
+   "sunEle": 15,
+   "terrain": "2b3800",
+   "horizon": "edead7",
+   "sky": "7c94ae"
+  },
+  {
+   "sunEle": 20,
+   "terrain": "2f3d00",
+   "horizon": "eeeddf",
+   "sky": "8199b6"
+  },
+  {
+   "sunEle": 25,
+   "terrain": "324100",
+   "horizon": "eeede3",
+   "sky": "849dbb"
+  }
+ ]
+}

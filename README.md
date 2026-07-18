@@ -26,7 +26,9 @@ the same aerial-perspective tonemap as the web app, byte-identical pixels
 (guarded by the hash check in `web/test-node.mjs`). Photo options:
 `-l/--label` draws the summit labels + azimuth ruler on it,
 `-fg/--foreground-color` and `-bg/--background-color` set the terrain and
-sky colors (hex `RRGGBB`, defaults match the web palette).
+sky colors (hex `RRGGBB`, defaults match the web palette);
+`-hz/--horizon-color` overrides the horizon airlight band (default: sky
+pushed 85 % toward white) — the third knob time-of-day palettes need.
 `-b/--bilinear` switches the raycast to bilinear heightmap sampling —
 near ridges become smooth slopes instead of 90 m stairs (nearest sampling
 stays the default: it is the bit-parity reference the web app renders).
@@ -107,6 +109,8 @@ the script location, so they work from any CWD). Summary:
 | `build_peaks_db.py` | peak rating stage 1: match OSM peaks against the `prominence` tool's sweep | `data/peaks-rated.tsv`, `data/peaks-rejected.tsv` |
 | `dump_dist_native.py` | dist_map.png → raw uint16 reference for `web/test-node.mjs` | `dist_native.bin` (CWD) |
 | `make_icons.py` | regenerate the PWA icons (deterministic) | `web/icon-{192,512}.png` |
+| `make_sky_palette.py` | time-of-day palette table: spectral single-scattering sky (Rayleigh+Mie+ozone) → 3 colors per sun elevation, OKLab legibility clamps | `web/sky-palette.json` |
+| `render_sunset_anim.py` | render panorama frames through the palette table via the native CLI (`-fg/-bg/-hz`) | `out/sunset/frame_*.png`, `contact-sheet.png` |
 
 The two `*_hgt` and the two `*_osm_*` scripts intentionally overlap: the
 short ones serve the renderer today, the archive ones hedge against data

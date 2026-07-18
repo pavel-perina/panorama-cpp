@@ -362,6 +362,46 @@ small enough to hardcode into the JS; declination from (lat, lon, date)
 computed once per GPS fix, `decl=` demoted to a manual override /
 calibration nudge.
 
+## Time-of-day palette (sun-elevation → 3-color table)
+
+Observation (Pokémon Go, of all things, does this well): day/sunset/night
+color grading that stays *legible* — night sky is dark but never black.
+Our whole look is controlled by 3 colors — terrain ink, sky at horizon,
+sky above — so a full day cycle is just those three as functions of sun
+elevation, which the web app already computes (NOAA port).
+
+- **Precompute in Python**: sample a physical sky model (Hosek–Wilkie has
+  reference implementations; or pixel-sample Stellarium screenshots) at
+  the horizon and ~+30° for sun elevations −18°…+15° in a few-degree
+  steps → a ~20-row table of 3 RGB triples, hardcodeable anywhere.
+  Interpolate between rows in OKLab (colors.cpp already speaks it).
+- **The contrast model survives sunset.** Koschmieder fades distant
+  terrain toward the horizon color *whatever that color is* — ridges
+  vanish into orange exactly as they vanish into white, and near
+  silhouettes get MORE contrast (near-black vs. bright orange, like
+  reality). The danger zone is night, where terrain and sky are both
+  dark: clamp a luminance floor / minimum ΔL between the three colors,
+  which is exactly the game's trick.
+- v1 ignores azimuth dependence (real sunset is orange only around the
+  sun, blue-grey opposite, pink antisolar arch). A later refinement could
+  lerp the horizon color by |azimuth − sun azimuth|; overlay-level, the
+  tonemap needn't know.
+- **Validate with the native CLI first**: needs an explicit
+  horizon-color flag — today the horizon color is derived inside the
+  tonemap (85 % push toward white from the sky color), so exposing it is
+  a deliberate tonemap-signature change (hash-update rules apply, flag
+  defaults must reproduce today's output bit-exactly). Then a sunset
+  animation is a shell loop over sun elevation → frames → ffmpeg.
+- Subsumes the "sky gradient" and "warm-near/cool-far preset" bullets
+  below once it exists: those are just rows of this table.
+
+Separate but adjacent gripe: the solarized-dark **UI** theme (buttons,
+dialogs, overlay ink — not the render palette) is low-contrast and due
+for replacement. Rides the planned CSS custom-properties + SVG icon
+refactor; the overlay canvas colors scattered through app.js
+(#b58900, #268bd2, …) should move into one palette object at the same
+time so the theme is swappable in one place.
+
 ## Renderer (carried over, see also mobile-app-plan.md)
 
 - Transcendental interpolation in ray loop (exact lat/lon every ~16th

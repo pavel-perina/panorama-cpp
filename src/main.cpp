@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
 #include <print>
 #include <string_view>
 
@@ -33,6 +34,7 @@ struct Options {
     bool bilinear = false;              // bilinear heightmap sampling
     Rgb8 terrain{50, 65, 0};            // near-terrain color, matches web default
     Rgb8 sky{149, 195, 233};            // sky/airlight color, matches web default
+    std::optional<Rgb8> horizon;        // horizon airlight override (time-of-day)
 };
 
 // "RRGGBB" or "#RRGGBB" -> Rgb8; exits with a message on malformed input.
@@ -59,6 +61,8 @@ Rgb8 parseHexColor(std::string_view s)
                  "                           ridges; nearest sampling is the default)\n"
                  "  -fg, --foreground-color  photo near-terrain color, hex RRGGBB (default 324100)\n"
                  "  -bg, --background-color  photo sky color, hex RRGGBB (default 95c3e9)\n"
+                 "  -hz, --horizon-color     photo horizon airlight override, hex RRGGBB\n"
+                 "                           (default: sky pushed 85%% toward white)\n"
                  "Scene (viewpoint, azimuth window, distance) is hardcoded in src/main.cpp.");
     std::exit(1);
 }
@@ -83,6 +87,8 @@ Options parseOptions(int argc, char **argv)
             opt.terrain = parseHexColor(value());
         else if (arg == "-bg" || arg == "--background-color")
             opt.sky = parseHexColor(value());
+        else if (arg == "-hz" || arg == "--horizon-color")
+            opt.horizon = parseHexColor(value());
         else if (arg.starts_with('-'))
             usage();
         else
@@ -155,7 +161,8 @@ int main(int argc, char **argv)
         // web app (visibility slider default 100 km) — pixels match the page.
         std::println("Saving panorama_photo.png{}", opt.label ? " (labeled)" : "");
         const std::vector<uint8_t> rgba = tonemapDistMap(
-            view, distMap, 100.0, opt.terrain, opt.sky);
+            view, distMap, 100.0, opt.terrain, opt.sky,
+            opt.horizon ? &*opt.horizon : nullptr);
         std::vector<uint8_t> rgb(view.arraySize() * 3);
         for (size_t i = 0; i < view.arraySize(); ++i)
             std::copy_n(&rgba[i * 4], 3, &rgb[i * 3]);

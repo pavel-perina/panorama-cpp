@@ -17,9 +17,12 @@ struct Rgb8 {
 // Terrain fades into the sky with distance (Koschmieder contrast decay,
 // V = visibilityKm), interpolated in OkLab so the perceptual fade is
 // uniform. distMap: 0 = sky, else distance in view.distStepM units.
+// horizon overrides the airlight color at the horizon (time-of-day
+// palettes); null keeps the default: sky pushed 85 % toward white.
 // Returns view.outWidth * outHeight RGBA pixels.
 std::vector<uint8_t> tonemapDistMap(const View &view,
                                     const std::vector<uint16_t> &distMap,
-                                    double visibilityKm, Rgb8 terrain, Rgb8 sky);
+                                    double visibilityKm, Rgb8 terrain, Rgb8 sky,
+                                    const Rgb8 *horizon = nullptr);
 
 } // namespace pano
