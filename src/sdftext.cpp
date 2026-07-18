@@ -100,10 +100,15 @@ double SdfFont::textWidth(std::string_view utf8, double sizePx) const
 
 void SdfFont::drawText(uint8_t *image, int imgWidth, int imgHeight, int channels,
                        std::string_view utf8, double x, double y,
-                       double sizePx, double angleDeg, const uint8_t *color) const
+                       double sizePx, double angleDeg, const uint8_t *color,
+                       const uint8_t *outlineColor, double outlinePx) const
 {
     constexpr double kAaWidthPx = 1.0; // coverage ramp width on screen
     const double s = sizePx / m_emPx;
+    // The atlas only stores distances up to spreadPx from the edge; a wider
+    // outline would clip to a square at the glyph padding boundary.
+    if (outlineColor)
+        outlinePx = std::min(outlinePx, m_spreadPx * s - kAaWidthPx);
     const double a = toRadians(angleDeg);
     // baseline / "down" direction in screen coords (y down, angle CCW)
     const double dirX = std::cos(a), dirY = -std::sin(a);
@@ -149,9 +154,19 @@ void SdfFont::drawText(uint8_t *image, int imgWidth, int imgHeight, int channels
                     row[m_atlasW] * (1 - fu) * fv + row[m_atlasW + 1] * fu * fv;
                 const double distScreen = (value - 128.0) * (m_spreadPx / 127.0) * s;
                 const double alpha = std::clamp(distScreen / kAaWidthPx + 0.5, 0.0, 1.0);
-                if (alpha <= 0.0)
-                    continue;
                 uint8_t *pixel = &image[(size_t(py) * imgWidth + px) * channels];
+                if (outlineColor) {
+                    // coverage of the glyph dilated by outlinePx: halo under
+                    // the fill, so the band outside the edge survives
+                    const double haloAlpha = std::clamp(
+                        (distScreen + outlinePx) / kAaWidthPx + 0.5, 0.0, 1.0);
+                    if (haloAlpha <= 0.0)
+                        continue;
+                    for (int ch = 0; ch < channels; ++ch)
+                        pixel[ch] = uint8_t(pixel[ch] + (outlineColor[ch] - pixel[ch]) * haloAlpha + 0.5);
+                } else if (alpha <= 0.0) {
+                    continue;
+                }
                 for (int ch = 0; ch < channels; ++ch)
                     pixel[ch] = uint8_t(pixel[ch] + (color[ch] - pixel[ch]) * alpha + 0.5);
             }

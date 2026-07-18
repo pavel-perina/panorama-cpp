@@ -35,6 +35,7 @@ struct Options {
     Rgb8 terrain{50, 65, 0};            // near-terrain color (parity-reference palette;
     Rgb8 sky{149, 195, 233};            // the web app defaults to its sky-palette +30° row)
     std::optional<Rgb8> horizon;        // horizon airlight override (time-of-day)
+    double fontSize = 16.0;             // label size, px (ticks + halo scale along)
 };
 
 // "RRGGBB" or "#RRGGBB" -> Rgb8; exits with a message on malformed input.
@@ -63,6 +64,8 @@ Rgb8 parseHexColor(std::string_view s)
                  "  -bg, --background-color  photo sky color, hex RRGGBB (default 95c3e9)\n"
                  "  -hz, --horizon-color     photo horizon airlight override, hex RRGGBB\n"
                  "                           (default: sky pushed 85%% toward white)\n"
+                 "  -fs, --font-size         label size in px (default 16; azimuth ticks\n"
+                 "                           and halo width scale along — prints)\n"
                  "Scene (viewpoint, azimuth window, distance) is hardcoded in src/main.cpp.");
     std::exit(1);
 }
@@ -89,6 +92,13 @@ Options parseOptions(int argc, char **argv)
             opt.sky = parseHexColor(value());
         else if (arg == "-hz" || arg == "--horizon-color")
             opt.horizon = parseHexColor(value());
+        else if (arg == "-fs" || arg == "--font-size") {
+            opt.fontSize = std::atof(std::string(value()).c_str());
+            if (opt.fontSize <= 0.0) {
+                std::println(stderr, "Bad font size");
+                std::exit(1);
+            }
+        }
         else if (arg.starts_with('-'))
             usage();
         else
@@ -167,7 +177,7 @@ int main(int argc, char **argv)
         for (size_t i = 0; i < view.arraySize(); ++i)
             std::copy_n(&rgba[i * 4], 3, &rgb[i * 3]);
         if (opt.label)
-            drawAnnotations(view, rgb.data(), visible, font);
+            drawAnnotations(view, rgb.data(), visible, font, opt.fontSize);
         writePng("panorama_photo.png", view.outWidth, view.outHeight, 3, 8, rgb.data());
     } catch (const std::exception &e) {
         std::println(stderr, "Error: {}", e.what());

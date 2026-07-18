@@ -55,7 +55,7 @@ class SdfFont;
 // the canvas.
 void drawAnnotations(const View &view, uint8_t *rgb,
                      const std::vector<VisibleSummit> &summits,
-                     const SdfFont &font);
+                     const SdfFont &font, double labelSizePx = 16.0);
 
 // Grayscale-outline convenience wrapper: expands `outlines` to RGB, draws
 // the annotations and writes a PNG to `outputPath`.

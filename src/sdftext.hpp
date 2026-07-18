@@ -27,9 +27,14 @@ public:
     // (ClearType-like) coverage is deliberately absent: labels get scaled
     // (web zoom) and printed, where RGB fringes turn into color noise —
     // revisit as an opt-in for the desktop app at final resolution.
+    // outlineColor (optional) draws an outlinePx-wide halo band just outside
+    // the glyph edge — one pass, the SDF already knows the distance; the
+    // width is silently clamped to what the atlas spread can represent.
     void drawText(uint8_t *image, int imgWidth, int imgHeight, int channels,
                   std::string_view utf8, double x, double y,
-                  double sizePx, double angleDeg, const uint8_t *color) const;
+                  double sizePx, double angleDeg, const uint8_t *color,
+                  const uint8_t *outlineColor = nullptr,
+                  double outlinePx = 0.0) const;
 
     double lineHeight(double sizePx) const { return m_lineHeight * sizePx / m_emPx; }
     double ascender(double sizePx) const { return m_ascender * sizePx / m_emPx; }

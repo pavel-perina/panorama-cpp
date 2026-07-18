@@ -10,8 +10,10 @@
 <title>Obzor</title>
 <!-- Link-preview card (WhatsApp/Signal/Mastodon/Facebook unfurls). The image
      is a real render: Kamenice lookout toward the Sněžník group at sunset,
-     cropped to 1200x630 (og-image.png, regenerate via build/panorama -l with
-     the -2° palette row). Spec wants an absolute og:image URL — prepend the
+     cropped to 1200x630 (og-image.png; regenerate: build/panorama -l -b
+     -fs 18 with the -2° palette row, crop 1200x630 at x=6091 y=16 —
+     keeps the azimuth ruler in frame — then zopflipng).
+     Spec wants an absolute og:image URL — prepend the
      public host if some service refuses the relative one. Crawlers only;
      deliberately not in the SW precache. -->
 <meta name="description" content="See which mountains are on your horizon — named summits with distances, from any viewpoint, at any time of day.">
