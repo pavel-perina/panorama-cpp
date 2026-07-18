@@ -16,6 +16,7 @@
     /* Raw palette: Terafox (nightfox.nvim, extra/terafox/alacritty.toml).
        app.js reads the semantic roles below for the canvas overlay, so a
        re-theme is: swap these values, done. */
+    --terafox-bg-dark: #0f1c1e;  /* theme's bg0 */
     --terafox-bg: #152528;
     --terafox-fg: #e6eaea;
     --terafox-fg-dim: #cbd9d8;
@@ -34,7 +35,10 @@
     --fg: var(--terafox-fg);
     --fg-dim: var(--terafox-fg-dim);
     --muted: var(--terafox-green);
-    --panel: var(--terafox-panel);
+    --panel: var(--terafox-bg-dark);  /* floating surfaces: darker than the
+                                         page for text contrast (~11:1) and
+                                         separation from the bright canvas */
+    --btn: var(--terafox-panel);      /* buttons: lighter = pressable */
     --border: var(--terafox-black-bright);
     --accent: var(--terafox-cyan);       /* light cyan */
     --accent2: var(--terafox-apricot);   /* the cyan–apricot pairing; reserved
@@ -50,9 +54,12 @@
                background: var(--bg); color: var(--fg-dim);
                font: 14px/1.4 Inter, system-ui, sans-serif; }
   #bar { padding: 6px 10px; }
+  #status { display: inline-block; max-width: 45vw; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis;
+            vertical-align: bottom; }
   #view { display: block; touch-action: none; cursor: grab;
           image-rendering: pixelated; }
-  #dirs button { background: var(--panel); color: var(--fg-dim);
+  #dirs button { background: var(--btn); color: var(--fg-dim);
                  border: 1px solid var(--border);
                  border-radius: 3px; margin: 0 1px; padding: 2px 7px;
                  font: inherit; cursor: pointer; }
@@ -65,17 +72,17 @@
   #menu button { background: none; border: none; color: var(--fg-dim);
                  font: inherit; text-align: left; padding: 8px 10px;
                  border-radius: 3px; cursor: pointer; }
-  #menu button:hover { background: var(--bg); }
+  #menu button:hover { background: var(--btn); }
   #menu label { padding: 8px 10px; }
   dialog { background: var(--panel); color: var(--fg-dim);
            border: 1px solid var(--border);
            border-radius: 5px; padding: 14px 18px; max-width: 26em;
            font: inherit; }
-  dialog::backdrop { background: rgba(21, 37, 40, 0.7); } /* --bg at 70% */
+  dialog::backdrop { background: rgba(15, 28, 30, 0.7); } /* --panel at 70% */
   dialog h3 { margin: 0 0 8px; color: var(--fg); }
   dialog p { margin: 6px 0; }
   dialog a { color: var(--accent); }
-  dialog button { float: right; background: var(--panel); color: var(--fg-dim);
+  dialog button { float: right; background: var(--btn); color: var(--fg-dim);
                   border: 1px solid var(--border); border-radius: 3px;
                   padding: 2px 10px; font: inherit; cursor: pointer; }
   #sundlg table { border-collapse: collapse; margin: 8px 0; }

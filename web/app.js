@@ -85,7 +85,22 @@ const DIST_STEP_M = 50.0; // one distance-map unit
 
 const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
-const status = (msg) => { document.getElementById("status").textContent = msg; };
+
+// Status line: transient by default — auto-clears after a few seconds, so
+// the bar is empty when nothing is happening (long messages also ellipsize
+// via CSS instead of wrapping the bar taller). sticky: true pins errors and
+// results until something supersedes them. Per-sector render chatter only
+// exists with ?debug=1.
+const DEBUG = params.has("debug");
+let statusTimer = null;
+const status = (msg, { sticky = false } = {}) => {
+  document.getElementById("status").textContent = msg;
+  clearTimeout(statusTimer);
+  if (!sticky)
+    statusTimer = setTimeout(
+      () => { document.getElementById("status").textContent = ""; }, 5000);
+};
+const debugStatus = (msg) => { if (DEBUG) status(msg); };
 
 // Overlay ink colors come from the CSS custom properties in index.html
 // (single source of truth for the theme — currently Terafox).
@@ -517,7 +532,7 @@ async function renderSector(i) {
   renderBusy = true;
   const gen = renderGen;
   const azMin = i * SECTOR_DEG, azMax = azMin + SECTOR_DEG;
-  status(`Rendering ${azMin}–${azMax}°…`);
+  debugStatus(`Rendering ${azMin}–${azMax}°…`);
   const t0 = performance.now();
   const refraction = Number(document.getElementById("refr").value);
   // beyond 1.2x visibility terrain has <2% contrast against the sky
@@ -548,8 +563,7 @@ async function renderSector(i) {
     sectors.get(lru).img.close();
     sectors.delete(lru);
   }
-  status(`${azMin}–${azMax}° in ${(performance.now() - t0).toFixed(0)} ms — ` +
-         `drag to pan, wheel/pinch to zoom`);
+  debugStatus(`${azMin}–${azMax}° in ${(performance.now() - t0).toFixed(0)} ms`);
   draw();
 }
 
@@ -630,7 +644,8 @@ async function main() {
   worker = new Worker("worker.js");
   worker.onmessage = onWorkerMessage;
   worker.onerror = (e) => status(`Worker failed: ` +
-    `${e.message || "script load error"} (${e.filename || "?"}:${e.lineno || 0})`);
+    `${e.message || "script load error"} (${e.filename || "?"}:${e.lineno || 0})`,
+    { sticky: true });
   const r = tileRange();
   await wcall("init", { range: r });
 
@@ -715,7 +730,8 @@ async function main() {
 // so the current viewpoint works offline (tiles already cached are free).
 async function downloadRegion() {
   if (!navigator.serviceWorker?.controller) {
-    status("Offline cache needs the deployed (https) host + one reload");
+    status("Offline cache needs the deployed (https) host + one reload",
+           { sticky: true });
     return;
   }
   await navigator.storage?.persist?.();
@@ -733,7 +749,8 @@ async function downloadRegion() {
   }
   const est = await navigator.storage?.estimate?.();
   const mb = est ? ` (${(est.usage / 1048576).toFixed(0)} MB stored)` : "";
-  status(`Region cached for offline: ${done - missing} tiles${mb}`);
+  status(`Region cached for offline: ${done - missing} tiles${mb}`,
+         { sticky: true });
 }
 
 // --- viewpoint / direction controls (phone-first) ---------------------------
@@ -785,11 +802,11 @@ async function toggleCompass(btn) {
       typeof DeviceOrientationEvent.requestPermission === "function") {
     try {
       if (await DeviceOrientationEvent.requestPermission() !== "granted") {
-        status("Compass permission denied");
+        status("Compass permission denied", { sticky: true });
         return;
       }
     } catch (err) {
-      status(`Compass: ${err.message}`);
+      status(`Compass: ${err.message}`, { sticky: true });
       return;
     }
   }
@@ -830,7 +847,10 @@ function setupControls() {
   });
 
   mk("📍", "render from my GPS position", () => {
-    if (!navigator.geolocation) { status("No geolocation API (https needed)"); return; }
+    if (!navigator.geolocation) {
+      status("No geolocation API (https needed)", { sticky: true });
+      return;
+    }
     status("Locating…");
     navigator.geolocation.getCurrentPosition((pos) => {
       const p = new URLSearchParams(location.search);
@@ -838,7 +858,7 @@ function setupControls() {
       p.set("lon", pos.coords.longitude.toFixed(6));
       p.delete("ele"); // eye height from heightmap, not GPS altitude
       location.search = p; // reload: tile range changed
-    }, (err) => status(`Geolocation failed: ${err.message}`),
+    }, (err) => status(`Geolocation failed: ${err.message}`, { sticky: true }),
     { enableHighAccuracy: true, timeout: 15000 });
   });
 
@@ -892,7 +912,7 @@ async function checkUpdate() {
   try {
     await reg.update();
   } catch (err) {
-    status(`Update check failed: ${err.message}`);
+    status(`Update check failed: ${err.message}`, { sticky: true });
     return;
   }
   if (reg.installing || reg.waiting) status("Updating…"); // reload follows
@@ -990,4 +1010,4 @@ window.addEventListener("keydown", (e) => {
 });
 window.addEventListener("resize", draw);
 
-main().catch((e) => { status(`Error: ${e.message}`); console.error(e); });
+main().catch((e) => { status(`Error: ${e.message}`, { sticky: true }); console.error(e); });
