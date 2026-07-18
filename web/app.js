@@ -1,10 +1,12 @@
-// WASM renderer in the browser. JS owns all I/O: fetches tiles + summit
-// TSV, calls the WASM module, draws on canvas. Overlay layers: summit
-// labels, azimuth ruler, sun marker + today's sunrise/set times (NOAA
-// solar position, flat-horizon times). Pan by drag/arrows, zoom by
-// wheel/pinch; visibility and refraction sliders re-render (render distance
-// is capped at 1.2x visibility — beyond that terrain is <2% contrast, i.e.
-// indistinguishable from sky, so the cap is lossless and ~halves the cost).
+// WASM renderer in the browser. The WASM module runs in a Web Worker
+// (worker.js) — raycasts and tile decompression never block the UI, so
+// pans stay smooth while sectors render. This thread owns the canvas,
+// controls and overlay layers: summit labels, azimuth ruler, sun marker +
+// today's sunrise/set times (NOAA solar position, flat-horizon times).
+// Pan by drag/arrows, zoom by wheel/pinch; visibility and refraction
+// sliders re-render (render distance is capped at 1.2x visibility — beyond
+// that terrain is <2% contrast, i.e. indistinguishable from sky, so the
+// cap is lossless and ~halves the cost).
 //
 // The view scrolls over a virtual 360° strip built from twelve 30° sectors,
 // each rendered on demand into its own offscreen canvas and LRU-cached
@@ -43,7 +45,7 @@ const STRIP_W = 360 / DEG_PER_PX;      // virtual strip width, px (float)
 const SECTOR_DEG = 30;
 const SECTOR_PX = SECTOR_DEG / DEG_PER_PX;
 const MAX_SECTORS = 6;                 // LRU cap: ~28 MP of canvases, iOS-safe
-let stripH =                           // exact value confirmed from api.height()
+let stripH =                           // exact value confirmed per render (res.h)
   Math.floor((SCENE.elMaxRad - SCENE.elMinRad) / SCENE.stepRad) + 1;
 
 // Integer-degree tile range covering distMaxM around the eye.
@@ -85,8 +87,29 @@ const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
 const status = (msg) => { document.getElementById("status").textContent = msg; };
 
-// Module state (set by main).
-let api = null, wasm = null, tsvCache = "", ready = false;
+// The WASM module lives in a Web Worker (worker.js) so renders and tile
+// decompression never block the UI thread. wcall() is the whole RPC layer:
+// one pending map, ids, promises; {progress} messages feed the status line.
+let worker = null, ready = false;
+let msgId = 0;
+const pending = new Map();
+
+function wcall(cmd, args = {}) {
+  return new Promise((resolve, reject) => {
+    const id = ++msgId;
+    pending.set(id, { resolve, reject });
+    worker.postMessage({ id, cmd, ...args });
+  });
+}
+
+function onWorkerMessage(e) {
+  const d = e.data;
+  if (d.progress !== undefined) { status(d.progress); return; }
+  const p = pending.get(d.id);
+  if (!p) return;
+  pending.delete(d.id);
+  if (d.ok) p.resolve(d); else p.reject(new Error(d.error));
+}
 
 // Viewport over the virtual strip: offsets are strip coordinates of the
 // viewport's top-left corner; offsetX wraps modulo STRIP_W.
@@ -94,7 +117,8 @@ let offsetX = 0, offsetY = 0;
 let zoom = 1.0;
 let lastDir = 1; // last horizontal scroll direction (prefetch hint)
 
-// Sector cache: index 0-11 -> {canvas, summits (sector-local x), stamp}.
+// Sector cache: index 0-11 -> {img (ImageBitmap), summits (sector-local x),
+// stamp}. Evicted/invalidated bitmaps are close()d to release their memory.
 const sectors = new Map();
 let stamp = 0;
 const mod12 = (k) => ((k % 12) + 12) % 12;
@@ -314,7 +338,7 @@ function draw() {
       continue;
     }
     s.stamp = ++stamp;
-    ctx.drawImage(s.canvas,
+    ctx.drawImage(s.img,
                   offsetX - k * SECTOR_PX, offsetY, viewW / zoom, srcH,
                   0, 0, viewW, srcH * zoom);
   }
@@ -476,50 +500,43 @@ function drawOverlay() {
 let renderBusy = false;
 let prefetchTimer = null;
 let renderedSunEle = null; // sun elevation baked into cached sectors (🌇 mode)
+let renderGen = 0; // bumped by invalidateSectors: in-flight results are stale
 
 async function renderSector(i) {
   renderBusy = true;
+  const gen = renderGen;
   const azMin = i * SECTOR_DEG, azMax = azMin + SECTOR_DEG;
   status(`Rendering ${azMin}–${azMax}°…`);
-  await new Promise(requestAnimationFrame); // let the status paint
   const t0 = performance.now();
   const refraction = Number(document.getElementById("refr").value);
   // beyond 1.2x visibility terrain has <2% contrast against the sky
   // (Koschmieder) — quantizes to sky anyway, so capping is lossless
   const distEffM = Math.min(SCENE.distMaxM, 1.2 * visKm() * 1000);
-  api.render(SCENE.eye.lat, SCENE.eye.lon, SCENE.eye.ele,
-             azMin, azMax, SCENE.elMinRad, SCENE.elMaxRad,
-             SCENE.stepRad, distEffM, refraction);
-  const w = api.width(), h = api.height();
-  stripH = h;
-
-  // summits first: the TSV malloc may grow wasm memory, which would detach
-  // a heap view taken earlier
-  const tsvBytes = new TextEncoder().encode(tsvCache);
-  const tsvPtr = wasm._malloc(tsvBytes.length + 1);
-  wasm.HEAPU8.set(tsvBytes, tsvPtr);
-  wasm.HEAPU8[tsvPtr + tsvBytes.length] = 0;
-  const summits = JSON.parse(api.summits(tsvPtr));
-  wasm._free(tsvPtr);
-
   const pal = currentPalette();
   renderedSunEle = skyMode
     ? sunPosition(new Date(), SCENE.eye.lat, SCENE.eye.lon).eleDeg : null;
-  const ptr = api.tonemap(visKm(), ...pal.terrain, ...pal.sky, ...pal.horizon);
-  const rgba = new Uint8ClampedArray(wasm.HEAPU8.buffer, ptr, w * h * 4);
-  const cv = document.createElement("canvas");
-  cv.width = w;
-  cv.height = h;
-  cv.getContext("2d").putImageData(new ImageData(rgba, w, h), 0, 0);
+  let res;
+  try {
+    res = await wcall("render", {
+      lat: SCENE.eye.lat, lon: SCENE.eye.lon, ele: SCENE.eye.ele,
+      azMin, azMax, elMinRad: SCENE.elMinRad, elMaxRad: SCENE.elMaxRad,
+      stepRad: SCENE.stepRad, distM: distEffM, refraction,
+      visKm: visKm(), terrain: pal.terrain, sky: pal.sky, horizon: pal.horizon,
+    });
+  } finally {
+    renderBusy = false; // a worker error must not wedge the render pump
+  }
+  if (gen !== renderGen) { res.bitmap.close(); return; } // sliders/🌇 changed mid-render
+  stripH = res.h;
 
-  sectors.set(i, { canvas: cv, summits, stamp: ++stamp });
+  sectors.set(i, { img: res.bitmap, summits: res.summits, stamp: ++stamp });
   while (sectors.size > MAX_SECTORS) {
     let lru = null;
     for (const [idx, s] of sectors)
       if (lru === null || s.stamp < sectors.get(lru).stamp) lru = idx;
+    sectors.get(lru).img.close();
     sectors.delete(lru);
   }
-  renderBusy = false;
   status(`${azMin}–${azMax}° in ${(performance.now() - t0).toFixed(0)} ms — ` +
          `drag to pan, wheel/pinch to zoom`);
   draw();
@@ -531,23 +548,28 @@ async function pump() {
   if (!ready || renderBusy) return;
   const need = visibleKs().map(mod12).filter((i) => !sectors.has(i));
   if (need.length) {
+    if (lastDir >= 0) need.reverse(); // fill the newly exposed edge first
     await renderSector(need[0]);
     pump();
     return;
   }
   clearTimeout(prefetchTimer);
-  prefetchTimer = setTimeout(prefetchNeighbor, 400);
+  prefetchTimer = setTimeout(prefetchNeighbor, 150);
 }
 
 function prefetchNeighbor() {
   if (!ready || renderBusy) return;
   const ks = visibleKs();
-  const cands = lastDir >= 0 ? [ks[ks.length - 1] + 1, ks[0] - 1]
-                             : [ks[0] - 1, ks[ks.length - 1] + 1];
+  // two sectors ahead in the travel direction, one behind: renders happen
+  // off-thread now, so speculation costs no responsiveness — a steady
+  // scroll should always land on a cached sector
+  const cands = lastDir >= 0
+    ? [ks[ks.length - 1] + 1, ks[ks.length - 1] + 2, ks[0] - 1]
+    : [ks[0] - 1, ks[0] - 2, ks[ks.length - 1] + 1];
   for (const k of cands) {
     if (!sectors.has(mod12(k))) {
       renderSector(mod12(k)).then(() => {
-        prefetchTimer = setTimeout(prefetchNeighbor, 400);
+        prefetchTimer = setTimeout(prefetchNeighbor, 150);
       });
       return;
     }
@@ -557,6 +579,8 @@ function prefetchNeighbor() {
 // Scene-parameter change (visibility, refraction): all cached sectors are
 // stale — drop them and re-render the view.
 function invalidateSectors() {
+  renderGen++;
+  for (const s of sectors.values()) s.img.close();
   sectors.clear();
   draw();
 }
@@ -592,74 +616,32 @@ function lookAt(azDeg) {
 async function main() {
   // canvas fillText won't fetch @font-face fonts on its own; load explicitly
   const fontReady = document.fonts.load("14px Inter").catch(() => {});
-  wasm = await createPanoModule();
-  api = {
-    reset: wasm.cwrap("pano_reset", null, ["number", "number", "number", "number"]),
-    addTile: wasm.cwrap("pano_addTile", null, ["number", "number", "number"]),
-    addTileZst: wasm.cwrap("pano_addTileZst", "number",
-      ["number", "number", "number", "number"]),
-    render: wasm.cwrap("pano_render", "number",
-      ["number", "number", "number", "number", "number",
-       "number", "number", "number", "number", "number"]),
-    width: wasm.cwrap("pano_width", "number", []),
-    height: wasm.cwrap("pano_height", "number", []),
-    tonemap: wasm.cwrap("pano_tonemap", "number",
-      ["number", "number", "number", "number", "number", "number", "number",
-       "number", "number", "number"]),
-    // takes a heap pointer: cwrap "string" args go via the 1 MB WASM stack,
-    // too small for peaks-rated.tsv (~1.1 MB)
-    summits: wasm.cwrap("pano_summits", "string", ["number"]),
-    eyeElevation: wasm.cwrap("pano_eyeElevation", "number", ["number", "number"]),
-  };
-
-  // Fetch tiles straight into the WASM heap — only those the render
-  // distance can reach (disc, not bounding square).
+  worker = new Worker("worker.js");
+  worker.onmessage = onWorkerMessage;
+  worker.onerror = (e) => status(`Worker failed: ` +
+    `${e.message || "script load error"} (${e.filename || "?"}:${e.lineno || 0})`);
   const r = tileRange();
-  api.reset(r.minLat, r.minLon, r.maxLat, r.maxLon);
+  await wcall("init", { range: r });
+
+  // Tiles are fetched + decompressed inside the worker (the unzstd of ~28
+  // tiles was main-thread jank); only those the render distance can reach
+  // (disc, not bounding square). Progress arrives as worker messages.
   const tiles = [];
   for (let lat = r.minLat; lat <= r.maxLat; ++lat)
     for (let lon = r.minLon; lon <= r.maxLon; ++lon)
       if (tileNearestKm(lat, lon) <= SCENE.distMaxM / 1000 + 2)
-        tiles.push([lat, lon]);
-  let loaded = 0;
-  for (const [lat, lon] of tiles) {
-    const name = tileName(lat, lon);
-    // zstd mirror is the primary source (3x smaller); hgt-zst is the legacy
-    // mirror name, raw .hgt the last fallback
-    let src = `hgt3-zst/${name}.zst`;
-    let resp = await fetch(`${DATA_URL}/${src}`);
-    if (!resp.ok) {
-      src = `hgt-zst/${name}.zst`;
-      resp = await fetch(`${DATA_URL}/${src}`);
-    }
-    let compressed = true;
-    if (!resp.ok) {
-      src = name;
-      resp = await fetch(`${DATA_URL}/${name}`);
-      compressed = false;
-    }
-    status(`Fetching tile ${++loaded}/${tiles.length}: ${src}`);
-    if (!resp.ok) { console.warn(`missing tile ${name}`); continue; }
-    const buf = new Uint8Array(await resp.arrayBuffer());
-    const ptr = wasm._malloc(buf.length);
-    wasm.HEAPU8.set(buf, ptr);
-    if (compressed) {
-      if (!api.addTileZst(lat, lon, ptr, buf.length))
-        console.warn(`bad zst tile ${name}`);
-    } else {
-      api.addTile(lat, lon, ptr);
-    }
-    wasm._free(ptr);
-  }
+        tiles.push({ lat, lon, name: tileName(lat, lon) });
+  await wcall("loadTiles", { tiles });
 
   // Safe eye height: 3x3 heightmap max + dh, unless ?ele= gave an absolute.
   if (!Number.isFinite(SCENE.eye.ele))
-    SCENE.eye.ele = api.eyeElevation(SCENE.eye.lat, SCENE.eye.lon) + SCENE.eyeAboveM;
+    SCENE.eye.ele = (await wcall("eyeElevation",
+      { lat: SCENE.eye.lat, lon: SCENE.eye.lon })).ele + SCENE.eyeAboveM;
 
   // Rated peak database when built (scripts/build_peaks_db.py), curated list otherwise.
   let tsvResp = await fetch(`${DATA_URL}/peaks-rated.tsv`);
   if (!tsvResp.ok) tsvResp = await fetch(`${DATA_URL}/summits.tsv`);
-  tsvCache = await tsvResp.text();
+  await wcall("setTsv", { text: await tsvResp.text() });
 
   // Controls: both sliders re-render on release (visibility caps the render
   // distance, so it is a raycast parameter now, not only a tonemap one).
@@ -701,16 +683,15 @@ async function main() {
 
   // Offline support (deployed host only — localhost keeps the no-cache dev
   // loop). The SW caches every tile fetched above; ⇣ prefetches a full disc.
-  // Updates: the browser re-fetches sw.js on navigations; an installed PWA
-  // has no reload UI, so we also check on resume and self-reload when a new
-  // version takes over during startup (invisible), or hint when mid-session.
+  // Updates: sw.js is re-fetched on navigations, on resume, and via the ↻
+  // menu action. Whenever a new SW takes over, reload unconditionally —
+  // scene state lives in the URL so nothing is lost, and it is the only
+  // reliable way a resumed PWA ever swaps versions (the old "reopen the
+  // app" hint was a trap: task-switch resume never re-navigates).
   if ("serviceWorker" in navigator &&
       !["localhost", "127.0.0.1"].includes(location.hostname)) {
-    const t0 = Date.now();
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (Date.now() - t0 < 5000) location.reload();
-      else status("Updated — reopen the app to apply");
-    });
+    navigator.serviceWorker.addEventListener("controllerchange",
+      () => location.reload());
     navigator.serviceWorker.register("sw.js").then((reg) => {
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") reg.update();
@@ -810,6 +791,7 @@ async function toggleCompass(btn) {
 
 function setupControls() {
   const bar = document.getElementById("dirs");
+  const menu = document.getElementById("menu");
   const mk = (label, title, onClick) => {
     const b = document.createElement("button");
     b.textContent = label;
@@ -818,6 +800,23 @@ function setupControls() {
     bar.appendChild(b);
     return b;
   };
+  // Menu rows use text labels, not icons — the bar stays at three symbols
+  // (pin, compass, menu) plus the direction shortcuts.
+  const mkItem = (label, onClick) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.addEventListener("click", () => { menu.hidden = true; onClick(b); });
+    menu.appendChild(b);
+    return b;
+  };
+
+  mk("☰", "menu", (e) => {
+    e.stopPropagation(); // the document listener below would close it again
+    menu.hidden = !menu.hidden;
+  });
+  document.addEventListener("click", (e) => {
+    if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true;
+  });
 
   mk("📍", "render from my GPS position", () => {
     if (!navigator.geolocation) { status("No geolocation API (https needed)"); return; }
@@ -834,37 +833,59 @@ function setupControls() {
 
   const compassBtn = mk("🧭", "follow compass", () => toggleCompass(compassBtn));
 
-  if (document.documentElement.requestFullscreen)
-    mk("⛶", "fullscreen", () => document.fullscreenElement
-      ? document.exitFullscreen() : document.documentElement.requestFullscreen());
-
   for (const [name, az] of [["N", 0], ["NE", 45], ["E", 90], ["SE", 135],
                             ["S", 180], ["SW", 225], ["W", 270], ["NW", 315]])
     mk(name, `look ${name} (az ${az}°)`, () => lookAt(az));
-
-  mk("⇣", "download this region for offline use", downloadRegion);
-
-  const skyBtn = mk("🌇", "realistic sky — colors follow the sun", () => {
-    skyMode = !skyMode;
-    skyBtn.style.opacity = skyMode ? "0.5" : "";
-    scheduleUrlSync();
-    invalidateSectors();
-  });
-  if (skyMode) skyBtn.style.opacity = "0.5";
 
   const sundlg = document.getElementById("sundlg");
   sundlg.addEventListener("click", (e) => { if (e.target === sundlg) sundlg.close(); });
   let sunTimer = null;
   sundlg.addEventListener("close", () => clearInterval(sunTimer));
-  mk("☀", "sun position & twilight times", () => {
+  mkItem("☀ Sun & twilight", () => {
     updateSunDialog();
     sunTimer = setInterval(updateSunDialog, 1000);
     sundlg.showModal();
   });
 
+  const skyLabel = () => `🌇 Realistic sky: ${skyMode ? "on" : "off"}`;
+  const skyItem = mkItem(skyLabel(), () => {
+    skyMode = !skyMode;
+    skyItem.textContent = skyLabel();
+    scheduleUrlSync();
+    invalidateSectors();
+  });
+
+  menu.appendChild(document.getElementById("refrctl")); // slider row
+
+  mkItem("⇣ Download region for offline", downloadRegion);
+
+  if (document.documentElement.requestFullscreen)
+    mkItem("⛶ Fullscreen", () => document.fullscreenElement
+      ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+
+  mkItem("↻ Check for updates", checkUpdate);
+
   const about = document.getElementById("about");
   about.addEventListener("click", (e) => { if (e.target === about) about.close(); });
-  mk("ⓘ", "about & data credits", () => about.showModal());
+  mkItem("ⓘ About & credits", () => about.showModal());
+}
+
+// ↻ menu action: fetch a fresh sw.js; if a new version exists, its install +
+// takeover trigger the controllerchange reload below. This is the manual
+// escape hatch for "the PWA never updates" — a resumed app never
+// re-navigates, so without a reload hook only a cold start could swap.
+async function checkUpdate() {
+  const reg = await navigator.serviceWorker?.getRegistration?.();
+  if (!reg) { status("No update mechanism here (localhost dev?)"); return; }
+  status("Checking for update…");
+  try {
+    await reg.update();
+  } catch (err) {
+    status(`Update check failed: ${err.message}`);
+    return;
+  }
+  if (reg.installing || reg.waiting) status("Updating…"); // reload follows
+  else status("Already up to date");
 }
 
 // Sun dialog: live position + twilight table, everything for the scene

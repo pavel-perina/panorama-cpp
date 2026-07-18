@@ -14,9 +14,13 @@ const SHELL = `shell-${VERSION}`;
 const TILES = "tiles-v1";
 const DATA = "data-v1";
 
+// Every entry must exist on the deployed host (deploy/deploy.sh copies an
+// explicit file list — keep the two in sync): one 404 fails cache.addAll,
+// the install rejects, and the app silently stays on the old version.
 const PRECACHE = [
   "./",
   "app.js",
+  "worker.js",
   "manifest.webmanifest",
   "icon-192.png",
   "icon-512.png",

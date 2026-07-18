@@ -26,6 +26,16 @@
                  border-radius: 3px; margin: 0 1px; padding: 2px 7px;
                  font: inherit; cursor: pointer; }
   input[type="range"] { accent-color: #268bd2; }
+  #menu { position: fixed; top: 42px; left: 8px; z-index: 10;
+          display: flex; flex-direction: column; min-width: 15em;
+          background: #073642; border: 1px solid #586e75; border-radius: 5px;
+          padding: 6px; }
+  #menu[hidden] { display: none; }
+  #menu button { background: none; border: none; color: #93a1a1; font: inherit;
+                 text-align: left; padding: 8px 10px; border-radius: 3px;
+                 cursor: pointer; }
+  #menu button:hover { background: #002b36; }
+  #menu label { padding: 8px 10px; }
   dialog { background: #073642; color: #93a1a1; border: 1px solid #586e75;
            border-radius: 5px; padding: 14px 18px; max-width: 26em;
            font: inherit; }
@@ -52,12 +62,15 @@
     visibility <input id="vis" type="range" min="10" max="300" step="5" value="100"
                       style="vertical-align:middle"> <span id="visval">100 km</span>
   </label>
-  <label id="refrctl" style="float:right; display:none; margin-right:20px">
+</div>
+<canvas id="view"></canvas>
+<!-- ☰ panel; rows are appended by app.js (text labels, not icons) -->
+<div id="menu" hidden>
+  <label id="refrctl" style="display:none">
     refraction <input id="refr" type="range" min="1.00" max="1.30" step="0.01" value="1.18"
                       style="vertical-align:middle"> <span id="refrval">1.18</span>
   </label>
 </div>
-<canvas id="view"></canvas>
 <dialog id="sundlg">
   <h3>Sun</h3>
   <p id="sunnow"></p>
@@ -82,7 +95,7 @@
   <p>Zstandard decoder © Meta Platforms, BSD.</p>
   <button onclick="this.closest('dialog').close()">close</button>
 </dialog>
-<script src="../build-wasm/pano.js"></script>
+<!-- pano.js loads inside web/worker.js — the WASM module lives off-thread -->
 <script src="app.js"></script>
 </body>
 </html>

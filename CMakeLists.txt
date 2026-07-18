@@ -37,7 +37,7 @@ if(EMSCRIPTEN)
         -O3
         -sMODULARIZE=1
         -sEXPORT_NAME=createPanoModule
-        -sENVIRONMENT=web,node
+        -sENVIRONMENT=web,worker,node  # worker: pano.js runs in web/worker.js
         -sALLOW_MEMORY_GROWTH=1
         -sSTACK_SIZE=1MB
         -sEXPORTED_FUNCTIONS=_pano_reset,_pano_addTile,_pano_addTileZst,_pano_render,_pano_tonemap,_pano_width,_pano_height,_pano_summits,_pano_eyeElevation,_malloc,_free

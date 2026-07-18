@@ -59,9 +59,12 @@ Europe 2026), `sky=1` time-of-day sky palette. Tiles are fetched only
 within the render-distance disc, not the full bounding square.
 
 The view scrolls over a virtual 360° strip built from twelve 30° sectors,
-rendered on demand into LRU-cached canvases (idle time prefetches the
+rendered on demand into LRU-cached bitmaps (idle time prefetches the
 neighbor in the scroll direction), so compass follow and the N…NW buttons
-never block on a render once their sectors are cached. Render distance is
+never block on a render once their sectors are cached. The WASM module
+runs in a Web Worker (`web/worker.js`): raycasts, tile decompression and
+tonemapping happen off the UI thread, so panning stays smooth even while
+a sector renders — sectors come back as transferred `ImageBitmap`s. Render distance is
 capped at 1.2× the visibility slider — beyond that terrain is under 2 %
 contrast (Koschmieder), indistinguishable from sky, so the cap is
 lossless; both sliders re-render on release. The overlay shows the sun
@@ -69,13 +72,14 @@ under the ruler at its true azimuth (elevation as text — the sun is
 almost always far above the narrow elevation window) and today's
 sunrise/set times at their azimuths on the eye-level line (NOAA solar
 algorithm, flat-horizon times in the browser's local timezone).
-Toolbar: 📍 geolocate,
-🧭 compass follow (adaptive heading smoothing), N…NW direction buttons,
-⛶ fullscreen, ⇣ download region for offline, 🌇 realistic sky (render
-colors follow the live sun elevation through a precomputed day/sunset/
-night palette — `docs/sky-palette-notes.md`; off = fixed daylight, the
-palette's +30° row), ☀ sun dialog (live azimuth/elevation/shadow length,
-twilight tiers, golden hour), ⓘ about. Sensors require
+Toolbar: 📍 geolocate, 🧭 compass follow (adaptive heading smoothing),
+N…NW direction buttons, and a ☰ menu panel holding everything else as
+text rows: ☀ sun & twilight dialog (live azimuth/elevation/shadow length,
+twilight tiers, golden hour), 🌇 realistic sky on/off (render colors
+follow the live sun elevation through a precomputed day/sunset/night
+palette — `docs/sky-palette-notes.md`; off = fixed daylight, the
+palette's +30° row), refraction slider, ⇣ download region for offline,
+⛶ fullscreen, ↻ check for updates, ⓘ about. Sensors require
 HTTPS — use the deployed host, not `http://` LAN addresses.
 
 Offline: a service worker (`web/sw.js`, skipped on localhost) precaches
@@ -83,7 +87,9 @@ the app shell as one versioned set — `pano.js`/`pano.wasm` update
 atomically, so mismatched pairs can't happen on the deployed host. Tiles
 are cached on first use (⇣ prefetches the whole render-distance disc);
 peak TSVs refresh in the background. `deploy.sh` stamps the version;
-updates apply on the next launch automatically.
+the app reloads itself the moment a new version takes over (scene state
+lives in the URL, so the reload is lossless), and ↻ in the menu forces
+an immediate check — no more waiting for a cold start.
 
 Self-hosting: see `deploy/` (podman quadlet + nginx). After a wasm or
 web/ change, rerun `deploy/deploy.sh`. Beware the dev-server cache
