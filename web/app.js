@@ -444,19 +444,26 @@ function drawOverlay() {
     c.lineWidth = 1;
   }
 
-  // azimuth ruler pinned to the viewport top
-  c.strokeStyle = THEME.tick;
+  // azimuth ruler pinned to the viewport top (labels get the same white halo
+  // as everything else — in 🌇 mode the sky behind them can be any color)
   c.fillStyle = THEME.ink;
   c.textAlign = "center";
   const azLeft = offsetX * DEG_PER_PX;
   const azRight = azLeft + viewW / zoom * DEG_PER_PX;
   for (let az = Math.ceil(azLeft); az <= Math.floor(azRight); ++az) {
     const x = Math.round((az / DEG_PER_PX - offsetX) * zoom) + 0.5;
+    c.lineWidth = 1;
+    c.strokeStyle = THEME.tick;
     c.beginPath();
     c.moveTo(x, 26); c.lineTo(x, 34);
     c.stroke();
-    c.fillText(`${((az % 360) + 360) % 360}°`, x, 20);
+    const label = `${((az % 360) + 360) % 360}°`;
+    c.lineWidth = 3;
+    c.strokeStyle = "rgba(255, 255, 255, 0.75)";
+    c.strokeText(label, x, 20);
+    c.fillText(label, x, 20);
   }
+  c.lineWidth = 1;
   c.textAlign = "left";
 
   // horizon (eye-level) line: subtle darkening of what's underneath, so it
@@ -880,25 +887,38 @@ followChk.addEventListener("change", () => setCompass(followChk.checked));
 function setupControls() {
   const bar = document.getElementById("dirs");
   const menu = document.getElementById("menu");
-  const mk = (label, title, onClick) => {
+  // <use> reference into the inline icon sprite in index.html (Pavel's
+  // icons, currentColor — they inherit the button's CSS color).
+  const icon = (id) => {
+    const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    s.setAttribute("class", "icon");
+    const u = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    u.setAttribute("href", "#" + id);
+    s.appendChild(u);
+    return s;
+  };
+  const mk = (iconId, title, onClick) => {
     const b = document.createElement("button");
-    b.textContent = label;
+    b.appendChild(icon(iconId));
     b.title = title;
     b.addEventListener("click", onClick);
     bar.appendChild(b);
     return b;
   };
-  // Menu rows use text labels, not icons — the bar stays at three symbols
-  // (menu, pin, compass); direction jumps live on the knob dialog now.
-  const mkItem = (label, onClick) => {
+  // Menu rows: fixed-width icon slot ("i-*" sprite id or an emoji, empty
+  // otherwise) + text, so labels align whether a row has an icon or not.
+  const mkItem = (label, onClick, ic = null) => {
     const b = document.createElement("button");
-    b.textContent = label;
+    const slot = document.createElement("span");
+    slot.className = "islot";
+    if (ic) slot.append(ic.startsWith("i-") ? icon(ic) : ic);
+    b.append(slot, label); // label stays b.lastChild (sky toggle relies on it)
     b.addEventListener("click", () => { menu.hidden = true; onClick(b); });
     menu.appendChild(b);
     return b;
   };
 
-  mk("☰", "menu", (e) => {
+  mk("i-menu", "menu", (e) => {
     e.stopPropagation(); // the document listener below would close it again
     menu.hidden = !menu.hidden;
   });
@@ -907,7 +927,7 @@ function setupControls() {
     if (knobdlg.open && !knobdlg.contains(e.target)) knobdlg.close();
   });
 
-  mk("📍", "render from my GPS position", () => {
+  mk("i-position", "render from my GPS position", () => {
     if (!navigator.geolocation) {
       status("No geolocation API (https needed)", { sticky: true });
       return;
@@ -923,7 +943,7 @@ function setupControls() {
     { enableHighAccuracy: true, timeout: 15000 });
   });
 
-  compassBtn = mk("🧭", "azimuth knob & compass", (e) => {
+  compassBtn = mk("i-compass", "azimuth knob & compass", (e) => {
     e.stopPropagation(); // same as ☰: don't let the outside-click closer race
     if (knobdlg.open) knobdlg.close();
     else { knobdlg.show(); updateKnob(); }
@@ -933,33 +953,34 @@ function setupControls() {
   sundlg.addEventListener("click", (e) => { if (e.target === sundlg) sundlg.close(); });
   let sunTimer = null;
   sundlg.addEventListener("close", () => clearInterval(sunTimer));
-  mkItem("☀ Sun & twilight", () => {
+  mkItem("Sun & twilight", () => {
     updateSunDialog();
     sunTimer = setInterval(updateSunDialog, 1000);
     sundlg.showModal();
-  });
+  }, "i-sun");
 
-  const skyLabel = () => `🌇 Realistic sky: ${skyMode ? "on" : "off"}`;
+  const skyLabel = () => `Realistic sky: ${skyMode ? "on" : "off"}`;
   const skyItem = mkItem(skyLabel(), () => {
     skyMode = !skyMode;
-    skyItem.textContent = skyLabel();
+    skyItem.lastChild.textContent = skyLabel();
     scheduleUrlSync();
     invalidateSectors();
-  });
+  }, "i-twilight");
 
   menu.appendChild(document.getElementById("refrctl")); // slider row
 
-  mkItem("⇣ Download region for offline", downloadRegion);
+  mkItem("Download region for offline", downloadRegion, "i-download");
 
   if (document.documentElement.requestFullscreen)
-    mkItem("⛶ Fullscreen", () => document.fullscreenElement
-      ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+    mkItem("Fullscreen", () => document.fullscreenElement
+      ? document.exitFullscreen() : document.documentElement.requestFullscreen(),
+      "i-fullscreen");
 
-  mkItem("↻ Check for updates", checkUpdate);
+  mkItem("Check for updates", checkUpdate, "i-update");
 
   const about = document.getElementById("about");
   about.addEventListener("click", (e) => { if (e.target === about) about.close(); });
-  mkItem("ⓘ About & credits", () => about.showModal());
+  mkItem("About & credits", () => about.showModal(), "i-info");
 }
 
 // ↻ menu action: fetch a fresh sw.js; if a new version exists, its install +
