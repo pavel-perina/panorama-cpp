@@ -382,6 +382,8 @@ function drawOverlay() {
   const c = ctx;
   c.font = "14px Inter, sans-serif";
   c.lineWidth = 1;
+  c.lineJoin = "round"; // halo strokes: miter joins spike out of sharp
+                        // glyph corners (M, N, W, the ↑↓ arrows)
   c.textAlign = "left";
 
   // Summit labels anchored to their own silhouette point, most prominent
@@ -777,7 +779,8 @@ function compassHeading(alpha, beta, gamma) {
 
 let compassOn = false;
 let smoothAz = null; // low-pass filtered heading (shaky hands, magnetometer noise)
-let compassBtn = null; // bar 🧭: dimmed while the sensor drives the view
+let compassBtn = null;  // bar 🧭: dimmed while the sensor drives the view
+let compassIcon = null; // its svg — rotates like a real needle (north-up)
 
 function onOrientation(e) {
   let heading = null;
@@ -850,8 +853,11 @@ const centerAzDeg = () =>
   ((((offsetX + viewW / zoom / 2) * DEG_PER_PX) % 360) + 360) % 360;
 
 function updateKnob() {
-  if (!knobdlg.open) return;
   const az = centerAzDeg();
+  // the bar compass is a live needle: solid tip = north relative to the view
+  // (look east and it leans west), i.e. rotate by -azimuth around its center
+  if (compassIcon) compassIcon.style.transform = `rotate(${-az.toFixed(1)}deg)`;
+  if (!knobdlg.open) return;
   document.getElementById("knobneedle")
     .setAttribute("transform", `rotate(${az.toFixed(1)} 50 50)`);
   document.getElementById("knobaz").textContent =
@@ -948,6 +954,7 @@ function setupControls() {
     if (knobdlg.open) knobdlg.close();
     else { knobdlg.show(); updateKnob(); }
   });
+  compassIcon = compassBtn.querySelector(".icon");
 
   const sundlg = document.getElementById("sundlg");
   sundlg.addEventListener("click", (e) => { if (e.target === sundlg) sundlg.close(); });

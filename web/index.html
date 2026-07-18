@@ -8,6 +8,20 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Obzor</title>
+<!-- Link-preview card (WhatsApp/Signal/Mastodon/Facebook unfurls). The image
+     is a real render: Kamenice lookout toward the Sněžník group at sunset,
+     cropped to 1200x630 (og-image.png, regenerate via build/panorama -l with
+     the -2° palette row). Spec wants an absolute og:image URL — prepend the
+     public host if some service refuses the relative one. Crawlers only;
+     deliberately not in the SW precache. -->
+<meta name="description" content="See which mountains are on your horizon — named summits with distances, from any viewpoint, at any time of day.">
+<meta property="og:title" content="Obzor — what's on your horizon">
+<meta property="og:description" content="See which mountains are on your horizon — named summits with distances, from any viewpoint, at any time of day.">
+<meta property="og:image" content="og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -66,7 +80,8 @@
                  font: inherit; cursor: pointer; vertical-align: bottom; }
   /* icons display at their native 24-grid size — any other size puts the
      2-unit strokes off the pixel grid and Chrome renders them soft */
-  #dirs .icon, #menu .icon { width: 24px; height: 24px; display: block; }
+  #dirs .icon, #menu .icon { width: 24px; height: 24px; display: block;
+                             transform-origin: 50% 50%; }
   input[type="range"] { accent-color: var(--accent); }
   #menu { position: fixed; top: 42px; left: 8px; z-index: 10;
           display: flex; flex-direction: column; min-width: 15em;
@@ -207,9 +222,13 @@
   <svg id="knob" viewBox="0 0 100 100" width="160" height="160">
     <circle cx="50" cy="50" r="38" fill="none" stroke="var(--border)" stroke-width="2"/>
     <g stroke="var(--border)" stroke-width="2">
+      <line x1="50" y1="12" x2="50" y2="17"/>
       <line x1="50" y1="12" x2="50" y2="17" transform="rotate(45 50 50)"/>
+      <line x1="50" y1="12" x2="50" y2="17" transform="rotate(90 50 50)"/>
       <line x1="50" y1="12" x2="50" y2="17" transform="rotate(135 50 50)"/>
+      <line x1="50" y1="12" x2="50" y2="17" transform="rotate(180 50 50)"/>
       <line x1="50" y1="12" x2="50" y2="17" transform="rotate(225 50 50)"/>
+      <line x1="50" y1="12" x2="50" y2="17" transform="rotate(270 50 50)"/>
       <line x1="50" y1="12" x2="50" y2="17" transform="rotate(315 50 50)"/>
     </g>
     <g fill="var(--fg-dim)" font-size="9" text-anchor="middle" dominant-baseline="central">

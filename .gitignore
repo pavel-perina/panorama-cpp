@@ -9,6 +9,7 @@ data/geofabrik-peaks/*.osm.pbf
 data/peaks-geofabrik.tsv
 *.png
 !web/icon-*.png
+!web/og-image.png
 dist_native.bin
 data/hgt1-zst/
 data/prominence.tsv

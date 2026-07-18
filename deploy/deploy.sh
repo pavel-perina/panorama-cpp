@@ -31,7 +31,8 @@ mkdir -p "$app/build-wasm"
 # cache.addAll, which fails the SW install and silently blocks updates.
 install -m 644 "$repo/web/index.html" "$repo/web/app.js" \
     "$repo/web/worker.js" "$repo/web/manifest.webmanifest" \
-    "$repo/web/icon-192.png" "$repo/web/icon-512.png" "$repo/web/sw.js" "$app/"
+    "$repo/web/icon-192.png" "$repo/web/icon-512.png" "$repo/web/sw.js" \
+    "$repo/web/og-image.png" "$app/"   # og-image: crawlers only, not in sw.js
 # Version from git describe (pano-blend convention: tags/commit/-dirty).
 # Stamped into the about dialog and the service-worker cache name — a new
 # deploy means a new shell cache, and pano.js + pano.wasm swap atomically
