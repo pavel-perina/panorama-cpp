@@ -649,6 +649,24 @@ function lookAt(azDeg) {
 }
 
 async function main() {
+  // Offline support + updates (deployed host only — localhost keeps the
+  // no-cache dev loop). Registered FIRST, before anything that can throw:
+  // if a deploy ships a broken app, the update hooks below must already be
+  // alive so the next deploy can heal it (a resumed PWA never re-navigates,
+  // so without them only a force-close cold start would check sw.js).
+  // Whenever a new SW takes over, reload unconditionally — scene state
+  // lives in the URL, nothing is lost.
+  if ("serviceWorker" in navigator &&
+      !["localhost", "127.0.0.1"].includes(location.hostname)) {
+    navigator.serviceWorker.addEventListener("controllerchange",
+      () => location.reload());
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reg.update();
+      });
+    }).catch(() => {});
+  }
+
   // canvas fillText won't fetch @font-face fonts on its own; load explicitly
   const fontReady = document.fonts.load("14px Inter").catch(() => {});
   worker = new Worker("worker.js");
@@ -717,23 +735,6 @@ async function main() {
     }
   }, 60000);
 
-  // Offline support (deployed host only — localhost keeps the no-cache dev
-  // loop). The SW caches every tile fetched above; ⇣ prefetches a full disc.
-  // Updates: sw.js is re-fetched on navigations, on resume, and via the ↻
-  // menu action. Whenever a new SW takes over, reload unconditionally —
-  // scene state lives in the URL so nothing is lost, and it is the only
-  // reliable way a resumed PWA ever swaps versions (the old "reopen the
-  // app" hint was a trap: task-switch resume never re-navigates).
-  if ("serviceWorker" in navigator &&
-      !["localhost", "127.0.0.1"].includes(location.hostname)) {
-    navigator.serviceWorker.addEventListener("controllerchange",
-      () => location.reload());
-    navigator.serviceWorker.register("sw.js").then((reg) => {
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") reg.update();
-      });
-    }).catch(() => {});
-  }
 }
 
 // Prefetch every tile within the render-distance disc into the SW cache,
