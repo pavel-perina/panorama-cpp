@@ -32,7 +32,7 @@ OBSERVER_H = 600.0     # Vysočina-ish viewpoint altitude [m]
 
 H_RAYLEIGH = 8000.0    # density scale heights [m]
 H_MIE = 1200.0
-BETA_MIE_S = 2.1e-6    # Mie scattering at sea level [1/m] (clear-ish air)
+BETA_MIE_S = 4.2e-6    # Mie scattering at sea level [1/m] (clear-ish air)
 BETA_MIE_ABS = 0.1 * BETA_MIE_S
 MIE_G = 0.76           # Henyey-Greenstein anisotropy
 
@@ -190,20 +190,52 @@ def hex_of(rgb):
 
 # --- palette table -----------------------------------------------------------
 
-SUN_ELEVATIONS = [-18, -15, -12, -9, -6, -4, -2, -1, 0, 1, 2, 4, 6, 10, 15, 20, 25]
+# The single-scattering model is credible for sun above about -6 deg; the
+# real sky below that (blue hour, night) is multiple scattering we don't
+# compute, so the table dives from the -6 deg dusk straight to one fixed
+# night anchor at -12 deg (dark blue, not grey — cameras and eyes both
+# agree twilight-to-night is blue) and stays flat below. High sun barely
+# changes anything, so the day side is sparse.
+MODEL_ELEVATIONS = [-6, -4, -2, -1, 0, 1, 2, 4, 6, 10, 15, 20, 30, 45, 60]
+# Deliberately fake-bright night (visibility beats realism on a screen):
+# the -12 anchor keeps the blue hue but sits far above physical darkness,
+# and interpolation from the -6 dusk inherits the boost.
+NIGHT_SKY_LAB = (0.30, -0.012, -0.055)
+NIGHT_HORIZON_LAB = (0.40, -0.008, -0.045)
 VIEW_HORIZON = 1.0     # deg — just above the horizon line
 VIEW_SKY = 35.0        # deg — the "sky above" slab
 SUN_AZI_OFF = 35.0     # deg from the sun's azimuth: sunward glow, off the disc
 
 DAY_TERRAIN = (50 / 255, 65 / 255, 0 / 255)   # current default ink (day look)
 
+# Eye adaptation: display exposure slides with scene luminance^ADAPT.
+# 0 = fixed exposure (night is physically, uselessly dark on a screen),
+# 1 = full adaptation (night looks like day). Surfaces then render at
+# illum^(1-ADAPT) — incomplete adaptation is what keeps night *looking*
+# dark while staying inside the screen's ~2 usable orders of magnitude.
+# The gain cap bounds the slide (~5 EV, the eye's evening range): without
+# it, deep-twilight residual glow gets amplified 10^4x into a fictional
+# bright amber horizon at -15 deg.
+ADAPT = 0.8
+MAX_GAIN = 32.0
+
+# Pastel ceiling: cap OKLab chroma so the sunset band lands salmon/amber
+# instead of maximum-saturation mustard (real skies and good wallpaper
+# art both sit well below sRGB's yellow corner).
+MAX_CHROMA = 0.11
+
 
 def tone(linear, exposure):
-    """Linear radiance -> display sRGB: exposure, soft shoulder, gamma."""
+    """Linear radiance -> display sRGB: exposure, soft shoulder, gamma.
+
+    The shoulder compresses *luminance* and scales RGB uniformly — a
+    per-channel soft clip collapses sunset hues to yellow (r and g both
+    saturate toward 1 while b sits clipped at 0)."""
     x = np.clip(linear * exposure, 0.0, None)
-    x = 1.0 - np.exp(-x)                       # filmic-ish soft clip
+    y = max(1e-9, 0.2126 * x[0] + 0.7152 * x[1] + 0.0722 * x[2])
+    x = x * ((1.0 - math.exp(-y)) / y)
     return [12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
-            for c in x]
+            for c in np.clip(x, 0.0, 1.0)]
 
 
 def main():
@@ -215,38 +247,52 @@ def main():
         return float(np.sum(spec * CMF_Y)) * DWL
 
     rows = []
-    for es in SUN_ELEVATIONS:
+    for es in MODEL_ELEVATIONS:
         hor_spec = sky_radiance(VIEW_HORIZON, SUN_AZI_OFF, es)
         sky_spec = sky_radiance(VIEW_SKY, SUN_AZI_OFF, es)
-        horizon = tone(spectrum_to_linear_srgb(hor_spec), exposure)
-        sky = tone(spectrum_to_linear_srgb(sky_spec), exposure)
 
-        # Terrain ink: day albedo, lightness driven by ground illumination.
-        # SUN is treated as irradiance throughout, so direct = E*T*sin(es)
-        # and ambient = pi * mean sky radiance are on the same scale —
-        # at sunset (direct 0) the ambient keeps the landscape visibly lit,
-        # as in reality (civil twilight is bright).
+        # Ground illumination: SUN is treated as irradiance throughout, so
+        # direct = E*T*sin(es) and ambient = pi * mean sky radiance are on
+        # the same scale — at sunset (direct 0) the ambient keeps the
+        # landscape visibly lit, as in reality (civil twilight is bright).
         direct = lum(sun_ground_transmittance(es) * SUN) \
             * max(0.0, math.sin(math.radians(es)))
         ambient = math.pi * 0.5 * (lum(hor_spec) + lum(sky_spec))
-        rows.append({"es": es, "horizon": horizon, "sky": sky,
+        rows.append({"es": es, "hor_spec": hor_spec, "sky_spec": sky_spec,
+                     "adapt_lum": 0.5 * (lum(hor_spec) + lum(sky_spec)),
                      "illum": direct + ambient})
     day_illum = max(r["illum"] for r in rows)
+    day_adapt = max(r["adapt_lum"] for r in rows)
+
+    for r in rows:
+        # Sliding exposure: partial dark adaptation to the scene's own
+        # brightness. Deep night radiance is exactly 0 in this model (the
+        # whole atmosphere sits in Earth's shadow) — floor the adaptation
+        # luminance and let the OKLab clamps own that regime.
+        la = max(r["adapt_lum"], day_adapt * 1e-9)
+        ex = exposure * min((day_adapt / la) ** ADAPT, MAX_GAIN)
+        r["horizon"] = tone(spectrum_to_linear_srgb(r["hor_spec"]), ex)
+        r["sky"] = tone(spectrum_to_linear_srgb(r["sky_spec"]), ex)
+
+    def cap_chroma(L, a, b):
+        c = math.hypot(a, b)
+        if c > MAX_CHROMA:
+            a, b = a * MAX_CHROMA / c, b * MAX_CHROMA / c
+        return L, a, b
 
     tL, ta, tb = srgb_to_oklab(DAY_TERRAIN)
     out = []
     for r in rows:
-        hL, ha, hb = srgb_to_oklab(r["horizon"])
-        sL, sa, sb = srgb_to_oklab(r["sky"])
+        hL, ha, hb = cap_chroma(*srgb_to_oklab(r["horizon"]))
+        sL, sa, sb = cap_chroma(*srgb_to_oklab(r["sky"]))
 
         # Legibility clamps (dark, never black; horizon stays the bright band).
         sL = max(sL, 0.13)
         hL = max(hL, sL + 0.04, 0.20)
 
-        # Flat exponent, not 1/3: single scattering misses the multiply-
-        # scattered twilight ambient (real sunset is EV ~12 vs noon ~15,
-        # our linear ratio says far less), and the eye dark-adapts anyway.
-        f = max(0.0, min(1.0, r["illum"] / day_illum)) ** 0.2
+        # Surfaces under partial adaptation: displayed lightness tracks
+        # illumination^(1-ADAPT) (full adaptation would cancel it entirely).
+        f = max(0.0, min(1.0, r["illum"] / day_illum)) ** (1.0 - ADAPT)
         terrL = max(0.10, min(tL * f, hL - 0.12))
         chroma = 0.3 + 0.7 * f                 # night desaturates the ink
         terrain = oklab_to_srgb((terrL, ta * chroma, tb * chroma))
@@ -256,10 +302,19 @@ def main():
                     "horizon": hex_of(oklab_to_srgb((hL, ha, hb))),
                     "sky": hex_of(oklab_to_srgb((sL, sa, sb)))})
 
+    # Night anchor below the model's trust range: interpolation carries
+    # the -6 deg dusk into night by -12; consumers clamp below that.
+    night_terrain = hex_of(oklab_to_srgb((0.20, ta * 0.3, tb * 0.3)))
+    out.insert(0, {"sunEle": -12,
+                   "terrain": night_terrain,
+                   "horizon": hex_of(oklab_to_srgb(NIGHT_HORIZON_LAB)),
+                   "sky": hex_of(oklab_to_srgb(NIGHT_SKY_LAB))})
+
     dst = Path(__file__).resolve().parent.parent / "web" / "sky-palette.json"
     dst.write_text(json.dumps(
-        {"model": "single-scattering Rayleigh+Mie+ozone, sun azimuth offset "
-                  f"{SUN_AZI_OFF} deg, OKLab legibility clamps",
+        {"model": "single-scattering Rayleigh+Mie+ozone for sun >= -6 deg, "
+                  f"sun azimuth offset {SUN_AZI_OFF} deg, OKLab legibility "
+                  "clamps; fixed dark-blue night rows below",
          "columns": ["terrain", "horizon", "sky"],
          "rows": out}, indent=1) + "\n")
     print(f"wrote {dst} ({len(out)} rows)\n")
@@ -273,6 +328,34 @@ def main():
         print(f"  {row['sunEle']:+4d}°   {swatch(row['terrain'])} "
               f"{swatch(row['horizon'])} {swatch(row['sky'])}   "
               f"{row['terrain']} {row['horizon']} {row['sky']}")
+
+    # Continuous gradient strips (slime_mold test_palettes style): sun
+    # elevation on the x-axis, OKLab interpolation between table rows —
+    # what the app would actually show through a day.
+    def at(key, es):
+        lo = max((r for r in out if r["sunEle"] <= es), key=lambda r: r["sunEle"])
+        hi = min((r for r in out if r["sunEle"] >= es), key=lambda r: r["sunEle"])
+        t = 0.0 if lo is hi else (es - lo["sunEle"]) / (hi["sunEle"] - lo["sunEle"])
+        a = srgb_to_oklab(tuple(int(lo[key][i:i + 2], 16) / 255 for i in (0, 2, 4)))
+        b = srgb_to_oklab(tuple(int(hi[key][i:i + 2], 16) / 255 for i in (0, 2, 4)))
+        return oklab_to_srgb(tuple(x + (y - x) * t for x, y in zip(a, b)))
+
+    lo_es, hi_es = out[0]["sunEle"], out[-1]["sunEle"]
+    steps = [lo_es + i for i in range(int(hi_es - lo_es) + 1)]
+    print()
+    for key in ("sky", "horizon", "terrain"):
+        strip = ""
+        for es in steps:
+            r, g, b = (round(c * 255) for c in at(key, es))
+            strip += f"\x1b[38;2;{r};{g};{b}m█\x1b[0m"
+        print(f"{key:>8}  {strip}")
+    axis = [" "] * len(steps)
+    for tick in range(int(lo_es), int(hi_es) + 1, 6):
+        col = int(tick - lo_es)
+        for j, ch in enumerate(f"{tick:+d}" if tick else "0"):
+            if col + j < len(axis):
+                axis[col + j] = ch
+    print(f"{'sun ele':>8}  {''.join(axis)}")
 
 
 if __name__ == "__main__":

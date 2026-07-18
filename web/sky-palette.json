@@ -1,5 +1,5 @@
 {
- "model": "single-scattering Rayleigh+Mie+ozone, sun azimuth offset 35.0 deg, OKLab legibility clamps",
+ "model": "single-scattering Rayleigh+Mie+ozone for sun >= -6 deg, sun azimuth offset 35.0 deg, OKLab legibility clamps; fixed dark-blue night rows below",
  "columns": [
   "terrain",
   "horizon",
@@ -7,106 +7,100 @@
  ],
  "rows": [
   {
-   "sunEle": -18,
-   "terrain": "020400",
-   "horizon": "161616",
-   "sky": "070707"
-  },
-  {
-   "sunEle": -15,
-   "terrain": "020400",
-   "horizon": "171615",
-   "sky": "070707"
-  },
-  {
    "sunEle": -12,
-   "terrain": "020400",
-   "horizon": "181612",
-   "sky": "070707"
-  },
-  {
-   "sunEle": -9,
-   "terrain": "020400",
-   "horizon": "1b150c",
-   "sky": "070708"
+   "terrain": "14180b",
+   "horizon": "394861",
+   "sky": "1b2e4a"
   },
   {
    "sunEle": -6,
    "terrain": "020400",
-   "horizon": "221201",
-   "sky": "060709"
+   "horizon": "a67028",
+   "sky": "1f252d"
   },
   {
    "sunEle": -4,
-   "terrain": "030700",
-   "horizon": "442700",
-   "sky": "0e1014"
+   "terrain": "020500",
+   "horizon": "eab66c",
+   "sky": "636c7b"
   },
   {
    "sunEle": -2,
-   "terrain": "070e00",
-   "horizon": "754800",
-   "sky": "2b2c30"
+   "terrain": "050900",
+   "horizon": "ebbc6e",
+   "sky": "868a93"
   },
   {
    "sunEle": -1,
-   "terrain": "0b1200",
-   "horizon": "956000",
-   "sky": "3b3d3f"
+   "terrain": "070d00",
+   "horizon": "ecc171",
+   "sky": "8c9196"
   },
   {
    "sunEle": 0,
-   "terrain": "0f1700",
-   "horizon": "b17d00",
-   "sky": "494c4e"
+   "terrain": "0a1100",
+   "horizon": "edcb77",
+   "sky": "8c9295"
   },
   {
    "sunEle": 1,
-   "terrain": "121b00",
-   "horizon": "c49920",
-   "sky": "535a5c"
+   "terrain": "0d1500",
+   "horizon": "f0d47f",
+   "sky": "889397"
   },
   {
    "sunEle": 2,
-   "terrain": "161f00",
-   "horizon": "d0ae44",
-   "sky": "5b656a"
+   "terrain": "101800",
+   "horizon": "f4db85",
+   "sky": "84949a"
   },
   {
    "sunEle": 4,
-   "terrain": "1b2600",
-   "horizon": "ddc97b",
-   "sky": "65757f"
+   "terrain": "151e00",
+   "horizon": "fbe48d",
+   "sky": "8095a2"
   },
   {
    "sunEle": 6,
-   "terrain": "1f2b00",
-   "horizon": "e4d89f",
-   "sky": "6d7f8e"
+   "terrain": "182200",
+   "horizon": "ffe893",
+   "sky": "7e95a8"
   },
   {
    "sunEle": 10,
-   "terrain": "253200",
-   "horizon": "eae4c4",
-   "sky": "768ba1"
+   "terrain": "1d2900",
+   "horizon": "feecb1",
+   "sky": "7d97b2"
   },
   {
    "sunEle": 15,
-   "terrain": "2b3800",
-   "horizon": "edead7",
-   "sky": "7c94ae"
+   "terrain": "222e00",
+   "horizon": "f9eec3",
+   "sky": "7f99ba"
   },
   {
    "sunEle": 20,
-   "terrain": "2f3d00",
-   "horizon": "eeeddf",
-   "sky": "8199b6"
+   "terrain": "253200",
+   "horizon": "f5eecc",
+   "sky": "819bc1"
   },
   {
-   "sunEle": 25,
+   "sunEle": 30,
+   "terrain": "2a3800",
+   "horizon": "f1eed7",
+   "sky": "86a1cb"
+  },
+  {
+   "sunEle": 45,
+   "terrain": "2f3e00",
+   "horizon": "eceddd",
+   "sky": "8ba7d5"
+  },
+  {
+   "sunEle": 60,
    "terrain": "324100",
-   "horizon": "eeede3",
-   "sky": "849dbb"
+   "horizon": "e9ebdf",
+   "sky": "8ca9da"
   }
  ]
 }

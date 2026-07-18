@@ -10,7 +10,7 @@ palette colors in OKLab for each frame's sun elevation, and runs the
 native CLI with -fg/-bg/-hz. Scene is whatever src/main.cpp hardcodes.
 
     uv run scripts/render_sunset_anim.py [start_ele end_ele [frames]]
-    uv run scripts/render_sunset_anim.py            # +10 .. -15, 15 frames
+    uv run scripts/render_sunset_anim.py   # one frame per table row, +60..-12
 
 Outputs to out/sunset/: frame_NN_ele*.png (full size) and
 contact-sheet.png (cropped strips, one per frame, labeled).
@@ -95,22 +95,25 @@ def palette_at(rows, sun_ele):
 
 
 def main():
-    start, end = 10.0, -15.0
-    frames = 15
-    if len(sys.argv) >= 3:
-        start, end = float(sys.argv[1]), float(sys.argv[2])
-    if len(sys.argv) >= 4:
-        frames = int(sys.argv[3])
     if not BINARY.exists():
         sys.exit(f"{BINARY} not found — build the native target first")
 
     rows = json.loads(PALETTE.read_text())["rows"]
+    if len(sys.argv) >= 3:
+        start, end = float(sys.argv[1]), float(sys.argv[2])
+        frames = int(sys.argv[3]) if len(sys.argv) >= 4 else 15
+        eles = [start + (end - start) * i / (frames - 1) for i in range(frames)]
+    else:
+        # Default: sweep the table itself, one frame per row, day -> night.
+        eles = sorted((r["sunEle"] for r in rows), reverse=True)
+
     work = OUT / "work"
     work.mkdir(parents=True, exist_ok=True)
+    for old in OUT.glob("frame_*.png"):
+        old.unlink()
 
     strips = []
-    for i in range(frames):
-        ele = start + (end - start) * i / (frames - 1)
+    for i, ele in enumerate(eles):
         terrain, horizon, sky = palette_at(rows, ele)
         print(f"frame {i:02d}: sun {ele:+6.2f}°  "
               f"-fg {terrain} -bg {sky} -hz {horizon}")
@@ -141,7 +144,7 @@ def main():
         y += r.height
     sheet_path = OUT / "contact-sheet.png"
     sheet.save(sheet_path)
-    print(f"\n{frames} frames in {OUT}/, sheet: {sheet_path}")
+    print(f"\n{len(eles)} frames in {OUT}/, sheet: {sheet_path}")
 
 
 if __name__ == "__main__":
