@@ -30,7 +30,8 @@ const api = {
   // heap pointer, not cwrap "string": the TSV can exceed the 1 MB WASM stack
   summits: Module.cwrap("pano_summits", "string", ["number"]),
   tonemap: Module.cwrap("pano_tonemap", "number",
-    ["number", "number", "number", "number", "number", "number", "number"]),
+    ["number", "number", "number", "number", "number", "number", "number",
+     "number", "number", "number"]),
 };
 
 const r = SCENE.range;
@@ -86,10 +87,11 @@ console.log(`visible summits: ${visible.length}, nearest: ` +
   visible.slice().sort((a, b) => a.distanceM - b.distanceM)[0]?.name);
 
 // Tonemap regression: shared src/tonemap.cpp must keep producing the same
-// pixels (web default palette, visibility 100 km). FNV-1a over RGB; update
-// the expected hash only on a deliberate palette/tonemap change.
+// pixels (parity-reference palette = native CLI defaults, visibility
+// 100 km, derived horizon). FNV-1a over RGB; update the expected hash only
+// on a deliberate palette/tonemap change.
 {
-  const rgbaPtr = api.tonemap(100.0, 50, 65, 0, 149, 195, 233);
+  const rgbaPtr = api.tonemap(100.0, 50, 65, 0, 149, 195, 233, -1, -1, -1);
   const rgba = Module.HEAPU8.subarray(rgbaPtr, rgbaPtr + w * h * 4);
   let hash = 0x811c9dc5;
   for (let i = 0; i < rgba.length; i += 4)

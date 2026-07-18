@@ -364,6 +364,12 @@ calibration nudge.
 
 ## Time-of-day palette (sun-elevation → 3-color table)
 
+**Status 2026-07-18: implemented.** `scripts/make_sky_palette.py` →
+`web/sky-palette.json` → hardcoded table in app.js behind the 🌇 toggle
+(`sky=1`); web default palette is the table's +30° row. Model, tuning
+iterations and what got faked: `docs/sky-palette-notes.md`. Still open
+below: visibility as a second table axis, azimuth-dependent horizon.
+
 Observation (Pokémon Go, of all things, does this well): day/sunset/night
 color grading that stays *legible* — night sky is dark but never black.
 Our whole look is controlled by 3 colors — terrain ink, sky at horizon,

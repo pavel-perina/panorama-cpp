@@ -32,8 +32,8 @@ struct Options {
     std::filesystem::path dataDir = "data";
     bool label = false;                 // annotate the photo rendering
     bool bilinear = false;              // bilinear heightmap sampling
-    Rgb8 terrain{50, 65, 0};            // near-terrain color, matches web default
-    Rgb8 sky{149, 195, 233};            // sky/airlight color, matches web default
+    Rgb8 terrain{50, 65, 0};            // near-terrain color (parity-reference palette;
+    Rgb8 sky{149, 195, 233};            // the web app defaults to its sky-palette +30° row)
     std::optional<Rgb8> horizon;        // horizon airlight override (time-of-day)
 };
 

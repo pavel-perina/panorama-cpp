@@ -114,16 +114,21 @@ const uint16_t *pano_render(double lat, double lon, double eyeEle,
 }
 
 // Aerial-perspective tonemap of the last render (src/tonemap.cpp — shared
-// with the native CLI, identical pixels). Returns W*H RGBA pixels.
+// with the native CLI, identical pixels). horizonR < 0 keeps the default
+// horizon color (sky pushed 85% toward white); >= 0 overrides it (the
+// time-of-day palette). Returns W*H RGBA pixels.
 EMSCRIPTEN_KEEPALIVE
 const uint8_t *pano_tonemap(double visibilityKm,
                             int terrainR, int terrainG, int terrainB,
-                            int skyR, int skyG, int skyB)
+                            int skyR, int skyG, int skyB,
+                            int horizonR, int horizonG, int horizonB)
 {
     if (!g_view || g_distMap.empty())
         return nullptr;
+    const pano::Rgb8 horizon{horizonR, horizonG, horizonB};
     g_rgba = pano::tonemapDistMap(*g_view, g_distMap, visibilityKm,
-                                  {terrainR, terrainG, terrainB}, {skyR, skyG, skyB});
+                                  {terrainR, terrainG, terrainB}, {skyR, skyG, skyB},
+                                  horizonR >= 0 ? &horizon : nullptr);
     return g_rgba.data();
 }
 

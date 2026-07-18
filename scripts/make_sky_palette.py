@@ -10,8 +10,9 @@ horizon, sky above), so a day/sunset/night cycle is just those three as a
 function of sun elevation. This script computes them from a spectral
 single-scattering atmosphere (Rayleigh + Mie + ozone Chappuis band — the
 ozone is what keeps the twilight zenith blue) and writes
-web/sky-palette.json for the JS side, plus an ANSI preview to the
-terminal. Legibility clamps in OKLab keep night renders readable
+web/sky-palette.json, plus an ANSI preview to the terminal. The web app
+does not fetch the JSON — paste its rows into SKY_PALETTE in web/app.js
+after regenerating (see docs/sky-palette-notes.md). Legibility clamps in OKLab keep night renders readable
 (the Pokémon Go trick: dark, never black).
 
 Companion: scripts/render_sunset_anim.py renders panorama frames through

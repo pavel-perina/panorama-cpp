@@ -26,7 +26,8 @@ the same aerial-perspective tonemap as the web app, byte-identical pixels
 (guarded by the hash check in `web/test-node.mjs`). Photo options:
 `-l/--label` draws the summit labels + azimuth ruler on it,
 `-fg/--foreground-color` and `-bg/--background-color` set the terrain and
-sky colors (hex `RRGGBB`, defaults match the web palette);
+sky colors (hex `RRGGBB`, defaults are the parity-reference palette the
+hash check pins; the web app defaults to its sky-palette +30° row);
 `-hz/--horizon-color` overrides the horizon airlight band (default: sky
 pushed 85 % toward white) — the third knob time-of-day palettes need.
 `-b/--bilinear` switches the raycast to bilinear heightmap sampling —
@@ -54,8 +55,8 @@ Scene state lives in URL params, all optional:
 ignored), `ele=` absolute eye elevation override, `az=` view center,
 `dist=` tile fetch radius / max render distance in km (default 250),
 `decl=` magnetic declination added to compass headings (≈ +5 in Central
-Europe 2026). Tiles are fetched only within the render-distance disc, not
-the full bounding square.
+Europe 2026), `sky=1` time-of-day sky palette. Tiles are fetched only
+within the render-distance disc, not the full bounding square.
 
 The view scrolls over a virtual 360° strip built from twelve 30° sectors,
 rendered on demand into LRU-cached canvases (idle time prefetches the
@@ -70,8 +71,11 @@ sunrise/set times at their azimuths on the eye-level line (NOAA solar
 algorithm, flat-horizon times in the browser's local timezone).
 Toolbar: 📍 geolocate,
 🧭 compass follow (adaptive heading smoothing), N…NW direction buttons,
-⛶ fullscreen, ⇣ download region for offline, ☀ sun dialog (live
-azimuth/elevation/shadow length, twilight tiers, golden hour), ⓘ about. Sensors require
+⛶ fullscreen, ⇣ download region for offline, 🌇 realistic sky (render
+colors follow the live sun elevation through a precomputed day/sunset/
+night palette — `docs/sky-palette-notes.md`; off = fixed daylight, the
+palette's +30° row), ☀ sun dialog (live azimuth/elevation/shadow length,
+twilight tiers, golden hour), ⓘ about. Sensors require
 HTTPS — use the deployed host, not `http://` LAN addresses.
 
 Offline: a service worker (`web/sw.js`, skipped on localhost) precaches
