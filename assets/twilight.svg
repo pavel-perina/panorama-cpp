@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g transform="matrix(1,0,0,1,-60,-30)">
+        <g id="Full-screen" serif:id="Full screen">
+        </g>
+        <g id="Update">
+        </g>
+        <g id="Download">
+        </g>
+        <g id="Hamburger">
+        </g>
+        <g id="Compas">
+        </g>
+        <g id="Sun">
+        </g>
+        <g id="Twilight">
+            <g transform="matrix(-1,-1.22465e-16,1.22465e-16,-1,152,62)">
+                <path d="M74,20L72,20" style="fill:none;stroke:white;stroke-width:2px;"/>
+            </g>
+            <g transform="matrix(-6,-1.7886e-14,-1.70288e-14,-1,510,66)">
+                <path d="M74,20L72,20" style="fill:none;stroke:white;stroke-opacity:0.6;stroke-width:0.46px;"/>
+            </g>
+            <g transform="matrix(-3,-8.70819e-15,-6.9683e-15,-1,291,69)">
+                <path d="M74,20L72,20" style="fill:none;stroke:white;stroke-opacity:0.6;stroke-width:0.89px;"/>
+            </g>
+            <g transform="matrix(-1,-1.22465e-16,1.22465e-16,-1,138,62)">
+                <path d="M74,20L72,20" style="fill:none;stroke:white;stroke-width:2px;"/>
+            </g>
+            <g transform="matrix(0.5,0.866025,-0.866025,0.5,49.3205,-37.3538)">
+                <path d="M74,20L72,20" style="fill:none;stroke:white;stroke-width:2px;"/>
+            </g>
+            <g transform="matrix(1,-1.57772e-30,-6.31089e-30,1.4,0,-23.2)">
+                <path d="M68.536,48C68.195,47.58 68,47.092 68,46.571C68,44.995 69.792,43.714 72,43.714C74.208,43.714 76,44.995 76,46.571C76,47.092 75.805,47.58 75.464,48L68.536,48Z" style="fill:white;"/>
+            </g>
+            <g transform="matrix(-0.5,0.866025,-0.866025,-0.5,129.321,-17.3538)">
+                <path d="M74,20L72,20" style="fill:none;stroke:white;stroke-width:2px;"/>
+            </g>
+        </g>
+        <g id="Position">
+        </g>
+    </g>
+</svg>
